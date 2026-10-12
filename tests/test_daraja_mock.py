@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import queue
 import threading
@@ -57,10 +58,43 @@ def callback_inbox():
         server.server_close()
 
 
+class _SyncASGITransport(httpx.BaseTransport):
+    """httpx's ASGI transport is async; the Daraja client is synchronous."""
+
+    def __init__(self, asgi_app: object) -> None:
+        self._app = asgi_app
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return asyncio.run(self._handle(request))
+
+    async def _handle(self, request: httpx.Request) -> httpx.Response:
+        headers = [
+            (key, value)
+            for key, value in request.headers.items()
+            if key.lower() not in {"host", "content-length"}
+        ]
+        transport = httpx.ASGITransport(app=self._app)
+        async with httpx.AsyncClient(transport=transport) as client:
+            response = await client.request(
+                request.method,
+                str(request.url),
+                headers=headers,
+                content=request.content,
+            )
+            return httpx.Response(
+                status_code=response.status_code,
+                headers=list(response.headers.items()),
+                content=response.content,
+            )
+
+    def close(self) -> None:
+        return
+
+
 @pytest.fixture
 def provider():
     app.state.daraja.reset()
-    client = httpx.Client(transport=httpx.ASGITransport(app=app), timeout=10.0)
+    client = httpx.Client(transport=_SyncASGITransport(app), timeout=10.0)
     daraja = DarajaHttpProvider(
         base_url="http://xmoney.test/sandbox/daraja",
         consumer_key="sandbox",
@@ -183,7 +217,19 @@ def test_oauth_and_stk_reject_missing_credentials(provider) -> None:
     assert unauthenticated.status_code == 401
     rejected = provider._client.post(
         provider._url("mpesa/stkpush/v1/processrequest"),
-        json={"Amount": 1},
+        json={
+            "BusinessShortCode": "174379",
+            "Password": "x",
+            "Timestamp": "20261012120000",
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": 1,
+            "PartyA": "254700000000",
+            "PartyB": "174379",
+            "PhoneNumber": "254700000000",
+            "CallBackURL": "http://127.0.0.1/callback",
+            "AccountReference": "amina",
+            "TransactionDesc": "topup",
+        },
     )
     assert rejected.status_code == 401
 

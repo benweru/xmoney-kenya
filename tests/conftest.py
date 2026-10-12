@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 import os
+import warnings
 from collections.abc import Iterator
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Using `httpx` with `starlette.testclient` is deprecated",
+    category=UserWarning,
+)
+from fastapi.testclient import TestClient  # noqa: E402
 
 _DEFAULT_TEST_URL = "postgresql+psycopg://xmoney:xmoney@localhost:5432/xmoney_test"
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

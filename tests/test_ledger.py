@@ -52,7 +52,7 @@ def _command(
 
 def test_system_accounts_are_seeded_with_zero_balances(db: Session) -> None:
     rows = db.scalars(select(LedgerAccount).order_by(LedgerAccount.code)).all()
-    assert [row.code for row in rows] == [spec.code for spec in SYSTEM_ACCOUNTS]
+    assert [row.code for row in rows] == sorted(spec.code for spec in SYSTEM_ACCOUNTS)
     for spec in SYSTEM_ACCOUNTS:
         account = db.get(LedgerAccount, spec.id)
         assert account is not None
