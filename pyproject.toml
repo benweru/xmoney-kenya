@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xmoney-kenya"
+version = "0.1.0"
+description = "Sandbox-only pay-by-@handle wallet prototype for Kenya. Never moves real money."
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = ["mpesa", "ledger", "sandbox", "kenya", "fastapi"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+  "alembic>=1.14",
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "psycopg[binary]>=3.2",
+  "pydantic-settings>=2.6",
+  "pydantic>=2.10",
+  "sqlalchemy>=2.0.36",
+  "uvicorn>=0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.8",
+]
+
+[project.scripts]
+xmoney = "xmoney.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+xmoney = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests", "alembic"]
+extend-exclude = ["alembic/script.py.mako"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/env.py" = ["E402"]
