@@ -68,8 +68,8 @@ def clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(text("SET LOCAL xmoney.allow_truncate = 'on'"))
             conn.execute(
                 text(
-                    "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users "
-                    "RESTART IDENTITY CASCADE"
+                    "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users, "
+                    "sandbox_inbox RESTART IDENTITY CASCADE"
                 )
             )
         with Session(engine) as session:

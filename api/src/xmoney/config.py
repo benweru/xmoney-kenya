@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     daraja_passkey: str = "sandbox-passkey"
     daraja_base_url: str = "http://127.0.0.1:8000/sandbox/daraja"
 
+    pin_max_attempts: int = 5
+    pin_lockout_minutes: int = 15
+    otp_ttl_seconds: int = 300
+    otp_max_attempts: int = 5
+    session_ttl_minutes: int = 720
+    # Local http needs this off; anything served over https should turn it on.
+    session_cookie_secure: bool = False
+
     @model_validator(mode="after")
     def refuse_real_money(self) -> Settings:
         if self.sandbox_mode is not True:
