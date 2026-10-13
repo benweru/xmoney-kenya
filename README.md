@@ -27,7 +27,7 @@ docs/adr/   architecture decision records
 docker/     Postgres init scripts for docker compose
 ```
 
-Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md).
+Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md).
 
 ## Architecture
 
@@ -111,11 +111,20 @@ Week 1 does **not** refuse an overdraft. A wallet can go negative. Spend limits 
 
 ## Handles
 
-`POST /v1/users` takes a handle and a phone. The handle is stored lowercase, without `@`, and is unique regardless of case. It is 3–20 characters, starts with a letter, and may contain letters, digits, and underscores. Names such as `admin`, `mpesa`, and `xmoney` are reserved.
+`POST /v1/users` takes a handle, a phone, and a 4–6 digit PIN. The handle is stored lowercase, without `@`, and is unique regardless of case. It is 3–20 characters, starts with a letter, and may contain letters, digits, and underscores. Names such as `admin`, `mpesa`, and `xmoney` are reserved.
 
 The phone must be E.164 for a Kenyan mobile: `+254` then `7` or `1` and eight more digits. Spaces and dashes are ignored. A local `07…` number is rejected so the stored form is always E.164.
 
 `GET /v1/handles/{handle}` resolves a handle to its wallet. It does not return the phone number.
+
+## Sign-in
+
+Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
+
+1. `POST /v1/auth/sign-in` with the phone and PIN. On success, a 6-digit code goes to the **sandbox inbox** (the demo's stand-in for SMS), and the response carries a `challenge_id`.
+2. `POST /v1/auth/verify` with the `challenge_id` and the code. The response sets an `httpOnly` session cookie, `xmoney_session`.
+
+`GET /v1/me` returns the signed-in user. `POST /v1/auth/sign-out` revokes the session. PINs are stored only as Argon2id hashes, and trivial PINs such as `1111` and `1234` are refused. Five wrong PINs in a row lock sign-in for 15 minutes. A code lasts 5 minutes, allows 5 guesses, and works once. `GET /v1/sandbox/inbox?phone=…` lists the latest messages for a phone. Anyone can read it, which is acceptable only because this is a sandbox.
 
 ## M-PESA simulator
 
@@ -169,9 +178,19 @@ curl -s localhost:8000/health
 
 curl -s -X POST localhost:8000/v1/users \
   -H 'content-type: application/json' \
-  -d '{"handle":"@amina","phone":"+254712345678"}'
+  -d '{"handle":"@amina","phone":"+254712345678","pin":"2580"}'
 
 curl -s localhost:8000/v1/handles/amina
+
+# Sign in: PIN first, then the code from the sandbox inbox.
+curl -s -X POST localhost:8000/v1/auth/sign-in \
+  -H 'content-type: application/json' \
+  -d '{"phone":"+254712345678","pin":"2580"}'          # note the challenge_id
+curl -s 'localhost:8000/v1/sandbox/inbox?phone=%2B254712345678'
+curl -s -c cookies.txt -X POST localhost:8000/v1/auth/verify \
+  -H 'content-type: application/json' \
+  -d '{"challenge_id":"<challenge_id>","code":"<code>"}'
+curl -s -b cookies.txt localhost:8000/v1/me
 
 curl -s -u sandbox:sandbox \
   'localhost:8000/sandbox/daraja/oauth/v1/generate?grant_type=client_credentials'
@@ -199,6 +218,7 @@ Coverage that matters for a ledger:
 - Concurrent distinct posts sum exactly. Concurrent posts of one idempotency key apply once.
 - The database, not only the service, rejects an unbalanced entry, an entry with no postings, a non-positive amount, and any update or delete of a posting.
 - Two registrations of the same handle cannot both win.
+- Sign-in: PINs are Argon2id hashes, wrong PINs lock the account (parallel guesses are each counted), and codes expire, die after 5 guesses, and work once. Signed-out session tokens stop working.
 - The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback. A successful STK push does not create a ledger posting.
 
 ## Roadmap
