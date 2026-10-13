@@ -238,6 +238,65 @@ def test_accounts_are_immutable(engine) -> None:
     assert name == "M-PESA float"
 
 
+def test_committed_entry_cannot_gain_postings(db: Session, engine) -> None:
+    user = register_user(db, handle="amina", phone="+254712345678")
+    entry_id = post_entry(db, _command(user.wallet_account_id)).entry_id
+    with pytest.raises(DBAPIError, match="transaction that created their entry"):
+        with engine.begin() as conn:
+            _insert_pair(conn, entry_id, debit=700, credit=700, first_line=3)
+    assert _count(db, Posting) == 2
+    assert get_balance(db, MPESA_FLOAT.id).balance_cents == 5_000
+
+
+def test_entry_created_at_is_stamped_by_the_database(engine) -> None:
+    entry_id = uuid4()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO journal_entries
+                  (id, idempotency_key, request_hash, description, created_at)
+                VALUES (CAST(:id AS uuid), 'backdated', :hash, 'raw', '2001-01-01T00:00:00Z')
+                """
+            ),
+            {"id": str(entry_id), "hash": "ab" * 32},
+        )
+        _insert_pair(conn, entry_id, debit=100, credit=100)
+        created_at, now = conn.execute(
+            text("SELECT created_at, now() FROM journal_entries WHERE id = CAST(:id AS uuid)"),
+            {"id": str(entry_id)},
+        ).one()
+    assert created_at == now
+
+
+@pytest.mark.parametrize("table", ["postings", "journal_entries", "ledger_accounts"])
+def test_ledger_tables_refuse_truncate(engine, table: str) -> None:
+    with pytest.raises(DBAPIError, match="immutable ledger table"):
+        with engine.begin() as conn:
+            conn.execute(text(f"TRUNCATE TABLE {table} CASCADE"))
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT count(*) FROM ledger_accounts")).scalar_one()
+    assert count == len(SYSTEM_ACCOUNTS)
+
+
+def test_post_entry_refuses_to_discard_pending_changes(db: Session) -> None:
+    user = register_user(db, handle="amina", phone="+254712345678")
+    db.add(
+        LedgerAccount(
+            id=uuid4(),
+            code="system:pending",
+            name="Pending",
+            account_type="asset",
+            normal_side="debit",
+            currency="KES",
+        )
+    )
+    with pytest.raises(RuntimeError, match="pending changes"):
+        post_entry(db, _command(user.wallet_account_id))
+    db.rollback()
+    assert _count(db, JournalEntry) == 0
+
+
 def test_database_rejects_unbalanced_and_orphan_entries(engine) -> None:
     entry_id = uuid4()
     with pytest.raises(IntegrityError, match="unbalanced"):
@@ -316,7 +375,7 @@ def _insert_journal(conn, entry_id, key: str) -> None:
     )
 
 
-def _insert_pair(conn, entry_id, *, debit: int, credit: int) -> None:
+def _insert_pair(conn, entry_id, *, debit: int, credit: int, first_line: int = 1) -> None:
     conn.execute(
         text(
             """
@@ -324,12 +383,13 @@ def _insert_pair(conn, entry_id, *, debit: int, credit: int) -> None:
               (id, journal_entry_id, account_id, line_no, direction, amount_cents)
             VALUES
               (CAST(:debit_id AS uuid), CAST(:entry_id AS uuid), CAST(:float_id AS uuid),
-               1, 'debit', :debit),
+               :first_line, 'debit', :debit),
               (CAST(:credit_id AS uuid), CAST(:entry_id AS uuid), CAST(:suspense_id AS uuid),
-               2, 'credit', :credit)
+               :first_line + 1, 'credit', :credit)
             """
         ),
         {
+            "first_line": first_line,
             "debit_id": str(uuid4()),
             "credit_id": str(uuid4()),
             "entry_id": str(entry_id),

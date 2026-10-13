@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from xmoney.db import release_read_transaction
 from xmoney.errors import AccountNotFound, IdempotencyConflict, LedgerError, UnbalancedEntry
 from xmoney.ledger.models import JournalEntry, LedgerAccount, NormalSide, Posting
 from xmoney.ledger.money import PostCommand, PostResult, request_hash, validate_command
@@ -56,8 +57,7 @@ def post_entry(session: Session, command: PostCommand) -> PostResult:
     """Insert a balanced entry, or return the original when the key is reused."""
     command = validate_command(command)
     digest = request_hash(command)
-    if session.in_transaction():
-        session.rollback()
+    release_read_transaction(session)
 
     for _ in range(5):
         try:

@@ -33,6 +33,23 @@ def get_sessionmaker() -> sessionmaker[Session]:
     return _sessionmaker
 
 
+def release_read_transaction(session: Session) -> None:
+    """End an autobegun read-only transaction so the caller can open its own.
+
+    Raises instead of silently discarding pending ORM changes. Work the caller
+    already flushed is not detectable here, so services that own their
+    transaction must be called before any writes, not after.
+    """
+    if not session.in_transaction():
+        return
+    if session.new or session.dirty or session.deleted:
+        raise RuntimeError(
+            "session has pending changes; commit or roll back before calling a "
+            "service that owns its own transaction"
+        )
+    session.rollback()
+
+
 def get_db() -> Iterator[Session]:
     session = get_sessionmaker()()
     try:

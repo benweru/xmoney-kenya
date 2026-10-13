@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from xmoney.db import release_read_transaction
 from xmoney.errors import AccountNotFound, HandleTaken, PhoneTaken, UserNotFound
 from xmoney.identity.models import User
 from xmoney.identity.validators import normalize_handle, normalize_phone
@@ -37,8 +38,7 @@ def register_user(session: Session, *, handle: str, phone: str) -> RegisteredUse
     """Create the user and a credit-normal KES wallet. Commits the session."""
     normalized_handle = normalize_handle(handle)
     normalized_phone = normalize_phone(phone)
-    if session.in_transaction():
-        session.rollback()
+    release_read_transaction(session)
     user_id = uuid4()
     wallet_id = uuid4()
     try:

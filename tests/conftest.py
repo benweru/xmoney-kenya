@@ -65,6 +65,7 @@ def clean_tables(engine: Engine) -> Iterator[None]:
             assert debits == credits, f"trial balance drifted: debits={debits} credits={credits}"
     finally:
         with engine.begin() as conn:
+            conn.execute(text("SET LOCAL xmoney.allow_truncate = 'on'"))
             conn.execute(
                 text(
                     "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users "
