@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
+from typing import Self
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from xmoney.errors import RateLimited
+from xmoney.ratelimit import service
 from xmoney.ratelimit.models import RateLimitHit
 from xmoney.ratelimit.service import REGISTER, SIGN_IN, START_TOPUP, Limit, enforce, prune
+
+# Every limit's window starts on the hour, so no test can straddle a window boundary.
+FROZEN_NOW = datetime(2026, 10, 13, 12, 0, 30, tzinfo=UTC)
+
+
+class _FrozenDatetime(datetime):
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> Self:
+        return cls.fromtimestamp(FROZEN_NOW.timestamp(), tz)
+
+
+@pytest.fixture(autouse=True)
+def frozen_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(service, "datetime", _FrozenDatetime)
 
 
 @pytest.fixture
