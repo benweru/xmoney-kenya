@@ -20,6 +20,7 @@ from xmoney.inbox.routes import router as inbox_router
 from xmoney.ledger.routes import router as ledger_router
 from xmoney.payments.daraja_mock import DarajaMockState, build_daraja_router
 from xmoney.payments.routes import router as payments_router
+from xmoney.transfers.routes import router as transfers_router
 
 logger = logging.getLogger("xmoney")
 
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/v1")
     app.include_router(inbox_router, prefix="/v1")
     app.include_router(payments_router, prefix="/v1")
+    app.include_router(transfers_router, prefix="/v1")
     app.include_router(ledger_router, prefix="/v1")
     app.include_router(build_daraja_router(), prefix="/sandbox/daraja")
     return app

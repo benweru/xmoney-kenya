@@ -10,6 +10,7 @@ rejects updates.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -172,18 +173,28 @@ def _assert_same_request(existing: JournalEntry, digest: str) -> None:
         raise IdempotencyConflict("idempotency key was already used with a different journal entry")
 
 
-def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostCommand) -> None:
-    account_ids = sorted({line.account_id for line in command.postings})
+def lock_accounts(session: Session, account_ids: Iterable[UUID]) -> Sequence[LedgerAccount]:
+    """Lock accounts in id order, the order every poster uses, so lockers cannot deadlock.
+
+    Balances read after this, in the same transaction, include every committed
+    posting and cannot change until the transaction ends.
+    """
+    ordered = sorted(set(account_ids))
     rows = session.scalars(
         select(LedgerAccount)
-        .where(LedgerAccount.id.in_(account_ids))
+        .where(LedgerAccount.id.in_(ordered))
         .order_by(LedgerAccount.id)
         .with_for_update()
     ).all()
     found = {row.id for row in rows}
-    missing = [str(account_id) for account_id in account_ids if account_id not in found]
+    missing = [str(account_id) for account_id in ordered if account_id not in found]
     if missing:
         raise AccountNotFound("unknown account(s): " + ", ".join(missing))
+    return rows
+
+
+def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostCommand) -> None:
+    rows = lock_accounts(session, (line.account_id for line in command.postings))
     for row in rows:
         if row.currency != "KES":
             raise LedgerError(f"account {row.code} is not a KES account")
