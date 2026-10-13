@@ -8,5 +8,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [002](002-ledger-design.md) | Ledger: double-entry, integer cents, balances derived from postings | Accepted |
 | [003](003-aws-hosting-terraform-later.md) | Hosting on AWS, with Terraform added at the first deploy | Accepted |
 | [004](004-pin-otp-sign-in.md) | Sign-in: hashed PIN, a one-time code, and server-side sessions | Accepted |
+| [005](005-stk-topup-state-machine.md) | STK top-ups: a state machine with exactly-once callbacks | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.
