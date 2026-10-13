@@ -182,12 +182,15 @@ Every response carries `X-Sandbox: true` and `X-Moves-Real-Money: false`.
 ### Tests
 
 ```bash
-make lint
+make lint        # ruff, mypy, ESLint, and Prettier
 make test        # pytest for the API, typecheck and build for the web app
 make migrate-check
+make pre-commit  # every pre-commit hook against every file
 ```
 
-Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs three jobs: `api` (lint, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16), `web` (lint, typecheck, build), and `compose` (builds the demo stack and smoke-tests both apps).
+`make setup` installs the [pre-commit](https://pre-commit.com/) hooks in `.pre-commit-config.yaml`: ruff (lint and format) and strict mypy for `api/`, ESLint and Prettier for `web/`, plus whitespace and YAML/TOML/JSON checks. Branch naming and the PR flow are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs three jobs: `api` (ruff, mypy, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16), `web` (ESLint, Prettier, typecheck, build), and `compose` (builds the demo stack and smoke-tests both apps).
 
 Coverage that matters for a ledger:
 
@@ -199,6 +202,8 @@ Coverage that matters for a ledger:
 - The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback. A successful STK push does not create a ledger posting.
 
 ## Roadmap
+
+The full plan, with each milestone's scope, what it proves, and when it is done, is in [docs/roadmap.md](docs/roadmap.md).
 
 | Milestone | What lands |
 | --- | --- |
