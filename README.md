@@ -109,9 +109,9 @@ PostgreSQL enforces the rules the application also checks:
 - Postings can only be added in the transaction that created their journal entry, so a committed entry cannot gain new lines later.
 - Handles are unique case-insensitively, phones are unique, and each user has one wallet.
 
-Customer flows never overdraw a wallet: a send is refused if the sender's balance, read under a lock, is too low (see [Sends](#sends)). The ledger itself does not forbid a negative account, so the sandbox journal route below can still push a wallet negative for demonstrations. The books always balance: total debits equal total credits, and the test suite checks that after every test.
+Customer flows never overdraw a wallet: a send is refused if the sender's balance, read under a lock, is too low (see [Sends](#sends)). The ledger itself does not forbid a negative account, so the local-development journal route below can still push a wallet negative. The books always balance: total debits equal total credits, and the test suite checks that after every test.
 
-`POST /v1/sandbox/journal-entries` exists so the ledger can be demonstrated. It is not the customer top-up API. Top-ups post from the STK callback, not from this route.
+`POST /v1/sandbox/journal-entries` posts any balanced entry, so it can credit any wallet. It is **off by default** and answers 404. Set `SANDBOX_JOURNAL_ENABLED=true` in `api/.env` to use it on your machine; the API refuses to start with that flag on when `PUBLIC_BASE_URL` is `https://`, so the public demo cannot turn it on. It is not the customer top-up API. Top-ups post from the STK callback.
 
 ## Handles
 
@@ -171,6 +171,24 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 - `kind` is `topup`, `transfer_in`, `transfer_out`, or `other` (sandbox journal entries). `amount_cents` is signed: positive into the wallet, negative out of it.
 - **Cursor pagination.** `limit` is 1–100 (default 20). Pass `next_cursor` back as `cursor`; `null` means there are no more pages. The cursor is the last item's `(created_at, id)`, and pages are a keyset seek on the `ix_postings_account_history` index. Items posted while you page sort ahead of your cursor, so later pages never repeat or skip an item. Refresh from the top to see them. A cursor this API did not issue is `422 invalid_cursor`.
 
+## Rate limits and the open demo
+
+The public demo has no password, so the API limits request rates per client IP and per signed-in user ([ADR 006](docs/adr/006-open-demo-protections.md)). Over a limit, the answer is `429 rate_limited` with a `Retry-After` header. Counters live in a Postgres table, so every API task shares them, and they store hashes, not IPs.
+
+| Limit | Per | Allowed |
+| --- | --- | --- |
+| Every `/v1` and `/sandbox` request | IP | 300 a minute |
+| Register | IP | 10 an hour |
+| Sign in, verify a code | IP | 20 each per 10 minutes |
+| Read the sandbox inbox, look up a handle | IP | 60 each a minute |
+| Start a top-up | user | 10 an hour |
+| Send | user | 30 per 10 minutes |
+
+- `TRUSTED_PROXY_HOPS` says how many proxies append to `X-Forwarded-For` (2 behind CloudFront and the ALB). At the default of 0 the header is ignored, so it cannot be forged.
+- `TOPUP_MAX_CENTS` lowers the largest single top-up for the demo. It cannot be raised above KES 250,000.
+- `DARAJA_MOCK_CONTROL_ENABLED=false` turns off the mock's control route, so one visitor cannot change outcomes for everyone.
+- `RATE_LIMITS_ENABLED=false` turns the limits off. The test suite does that by default and turns them on in `tests/test_rate_limits.py`.
+
 ## M-PESA simulator
 
 [Pesa Playground](https://github.com/OmentaElvis/pesa-playground) is a local M-PESA simulator and a good interactive tool. It is a Rust/Tauri desktop app (and a Docker image aimed at that UI), and its roadmap targets Daraja 3.0. It is not a Python library the test suite can import, and a GUI is the wrong place to assert that a callback was dropped. Week 1 therefore ships a small Daraja-compatible mock behind `PaymentsProvider`.
@@ -195,7 +213,7 @@ The last three digits of the MSISDN pick the outcome. Any other number uses the 
 | `099` | The push is accepted and the callback is never sent |
 | anything else | The configured default |
 
-`PUT /sandbox/daraja/__control/behavior` sets that default: `outcome` (`success`, `cancelled`, `timeout`, `insufficient_funds`), `delay_ms` (0–10000), and `drop_callback`. Suffix `099` still drops. Other suffixes still force their outcome, and they wait for the configured delay.
+`PUT /sandbox/daraja/__control/behavior` (unless `DARAJA_MOCK_CONTROL_ENABLED=false`) sets that default: `outcome` (`success`, `cancelled`, `timeout`, `insufficient_funds`), `delay_ms` (0–10000), and `drop_callback`. Suffix `099` still drops. Other suffixes still force their outcome, and they wait for the configured delay.
 
 ## Run it locally
 
@@ -277,6 +295,7 @@ Coverage that matters for a ledger:
 - Sign-in: PINs are Argon2id hashes, wrong PINs lock the account (parallel guesses are each counted), and codes expire, die after 5 guesses, and work once. Signed-out session tokens stop working.
 - The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback.
 - Sends: 100 concurrent sends of KES 1 from a wallet holding KES 50 succeed exactly 50 times and leave it at zero. 40 concurrent sends in opposite directions between two wallets all complete without a deadlock. 10 concurrent replays of one key send once.
+- Open demo: the journal route is 404 by default and cannot be enabled behind `https`; registration, sign-in, and top-ups are refused past their limits; failed attempts count; forged `X-Forwarded-For` addresses do not get a fresh bucket.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a callback that beats the push response is applied; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, and forged (wrong token) callbacks move no money; Postgres rejects illegal transitions.
 
 ## Roadmap
@@ -290,5 +309,5 @@ The full plan, with each milestone's scope, what it proves, and when it is done,
 | M2 | The wallet app and a public demo |
 | M3 | Money correctness: outbox, B2C cash-out, reconciliation, suspense, operations console |
 | M4 | Risk and compliance: KYC tiers, rules engine, sanctions screening, Data Protection Act |
-| M5 | Production readiness: rate limits, observability, load and chaos tests, threat model |
+| M5 | Production readiness: WAF and hardened limits, observability, load and chaos tests, threat model |
 | M6 | Merchant platform (stretch) |
