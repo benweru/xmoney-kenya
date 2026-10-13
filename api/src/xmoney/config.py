@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import secrets
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from xmoney.errors import SandboxViolation
@@ -23,6 +24,15 @@ class Settings(BaseSettings):
     daraja_shortcode: str = "174379"
     daraja_passkey: str = "sandbox-passkey"
     daraja_base_url: str = "http://127.0.0.1:8000/sandbox/daraja"
+
+    # Where Daraja sends STK callbacks. The real sandbox needs a public https URL.
+    public_base_url: str = "http://127.0.0.1:8000"
+    # Secret path segment of the callback URL. Hex, because Daraja rejects some words in URLs.
+    # Random per process unless set; every API instance behind one URL must share it.
+    stk_callback_token: str = Field(default_factory=lambda: secrets.token_hex(16), min_length=16)
+    stk_query_after_seconds: int = 60
+    stk_expire_after_seconds: int = 300
+    stk_query_interval_seconds: int = 15
 
     pin_max_attempts: int = 5
     pin_lockout_minutes: int = 15

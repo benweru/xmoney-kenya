@@ -111,6 +111,11 @@ class NotAuthenticated(XMoneyError):
     http_status = 401
 
 
+class TopupNotFound(XMoneyError):
+    code = "topup_not_found"
+    http_status = 404
+
+
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403
