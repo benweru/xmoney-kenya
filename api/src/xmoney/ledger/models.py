@@ -115,7 +115,7 @@ class Posting(Base):
         CheckConstraint("direction IN ('debit', 'credit')", name="ck_postings_direction"),
         CheckConstraint("line_no >= 1", name="ck_postings_line_no"),
         UniqueConstraint("journal_entry_id", "line_no", name="uq_postings_entry_line"),
-        Index("ix_postings_account_id", "account_id"),
+        Index("ix_postings_account_history", "account_id", "created_at", "journal_entry_id"),
         Index("ix_postings_journal_entry_id", "journal_entry_id"),
         {"comment": "Immutable debit and credit lines. Amounts are integer KES cents."},
     )

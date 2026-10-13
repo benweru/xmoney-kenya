@@ -158,6 +158,19 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 - **Idempotent.** Replaying a key returns the original transfer (HTTP 200). The same key with a different recipient, amount, or note is a 409. A key that was refused for insufficient funds can be retried after a top-up.
 - Sending to yourself is refused, and so is an unknown handle (404). Transfers cannot be updated or deleted.
 
+## Transaction history
+
+`GET /v1/me/transactions` (signed in) lists the wallet's activity, newest first. Each item is one journal entry that touched the wallet:
+
+```json
+{"items": [{"id": "…", "kind": "transfer_out", "amount_cents": -25000, "counterparty": "baraka",
+            "note": "Lunch", "mpesa_receipt": null, "created_at": "2026-10-13T09:41:07.123456Z"}],
+ "next_cursor": "MjAyNi0xMC0xM1Qw…"}
+```
+
+- `kind` is `topup`, `transfer_in`, `transfer_out`, or `other` (sandbox journal entries). `amount_cents` is signed: positive into the wallet, negative out of it.
+- **Cursor pagination.** `limit` is 1–100 (default 20). Pass `next_cursor` back as `cursor`; `null` means there are no more pages. The cursor is the last item's `(created_at, id)`, and pages are a keyset seek on the `ix_postings_account_history` index. Items posted while you page sort ahead of your cursor, so later pages never repeat or skip an item. Refresh from the top to see them. A cursor this API did not issue is `422 invalid_cursor`.
+
 ## M-PESA simulator
 
 [Pesa Playground](https://github.com/OmentaElvis/pesa-playground) is a local M-PESA simulator and a good interactive tool. It is a Rust/Tauri desktop app (and a Docker image aimed at that UI), and its roadmap targets Daraja 3.0. It is not a Python library the test suite can import, and a GUI is the wrong place to assert that a callback was dropped. Week 1 therefore ships a small Daraja-compatible mock behind `PaymentsProvider`.
@@ -233,6 +246,7 @@ curl -s -b cookies.txt -X POST localhost:8000/v1/topups \
 curl -s -b cookies.txt -X POST localhost:8000/v1/transfers \
   -H 'content-type: application/json' -H 'Idempotency-Key: send-1' \
   -d '{"to":"@baraka","amount_cents":25000,"note":"Lunch"}'
+curl -s -b cookies.txt 'localhost:8000/v1/me/transactions?limit=20'
 
 curl -s -u sandbox:sandbox \
   'localhost:8000/sandbox/daraja/oauth/v1/generate?grant_type=client_credentials'
@@ -272,7 +286,7 @@ The full plan, with each milestone's scope, what it proves, and when it is done,
 | Milestone | What lands |
 | --- | --- |
 | M0 | Week 1 foundation merged, `api/` + `web/` layout, first ADRs |
-| M1 | Money moves: STK top-up state machine, send by @handle, sign-in |
+| M1 | Money moves: STK top-up state machine, send by @handle, sign-in, owner-only balances, transaction history |
 | M2 | The wallet app and a public demo |
 | M3 | Money correctness: outbox, B2C cash-out, reconciliation, suspense, operations console |
 | M4 | Risk and compliance: KYC tiers, rules engine, sanctions screening, Data Protection Act |
