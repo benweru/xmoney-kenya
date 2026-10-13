@@ -8,11 +8,13 @@ import queue
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
 
 import httpx
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from starlette.types import ASGIApp
 
 from xmoney.errors import (
     CallbackParseError,
@@ -29,7 +31,7 @@ from xmoney.sandbox import assert_sandbox_daraja_host
 
 
 class _QuietHandler(BaseHTTPRequestHandler):
-    inbox: queue.Queue
+    inbox: queue.Queue[dict[str, Any]]
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
@@ -48,7 +50,7 @@ class _QuietHandler(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def callback_inbox():
-    inbox: queue.Queue = queue.Queue()
+    inbox: queue.Queue[dict[str, Any]] = queue.Queue()
 
     class Handler(_QuietHandler):
         pass
@@ -57,9 +59,8 @@ def callback_inbox():
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    host, port = server.server_address
     try:
-        yield f"http://{host}:{port}/daraja/callback", inbox
+        yield f"http://127.0.0.1:{server.server_port}/daraja/callback", inbox
     finally:
         server.shutdown()
         server.server_close()
@@ -68,7 +69,7 @@ def callback_inbox():
 class _SyncASGITransport(httpx.BaseTransport):
     """httpx's ASGI transport is async; the Daraja client is synchronous."""
 
-    def __init__(self, asgi_app: object) -> None:
+    def __init__(self, asgi_app: ASGIApp) -> None:
         self._app = asgi_app
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:

@@ -1,0 +1,44 @@
+# Install once with `make setup` (or `api/.venv/bin/pre-commit install`).
+# Run everything by hand with `api/.venv/bin/pre-commit run --all-files`.
+# The mypy, ESLint, and Prettier hooks use api/.venv and web/node_modules, so run `make setup` first.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+        files: ^api/
+      - id: ruff-format
+        files: ^api/
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (api)
+        entry: bash -c 'cd api && exec .venv/bin/mypy'
+        language: system
+        files: ^api/.*\.py$
+        pass_filenames: false
+      - id: prettier
+        name: prettier (web)
+        entry: bash -c 'cd web && exec node_modules/.bin/prettier --write --ignore-unknown "${@#web/}"' --
+        language: system
+        files: ^web/
+        exclude: ^web/package-lock\.json$
+      - id: eslint
+        name: eslint (web)
+        entry: bash -c 'cd web && exec npm run --silent lint'
+        language: system
+        files: ^web/.*\.(js|jsx|mjs|cjs|ts|tsx)$
+        pass_filenames: false

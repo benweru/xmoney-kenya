@@ -40,6 +40,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Lint
         run: ruff check src tests alembic && ruff format --check src tests alembic
+      - name: Typecheck
+        run: mypy
       - name: Migrate
         run: alembic upgrade head
       - name: Check models match migrations
@@ -65,6 +67,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Check formatting
+        run: npm run format:check
       - name: Typecheck
         run: npm run typecheck
       - name: Build

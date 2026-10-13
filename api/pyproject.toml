@@ -28,8 +28,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "mypy>=1.13",
+  "pre-commit>=4.0",
   "pytest>=8.3",
-  "ruff>=0.8",
+  "ruff==0.17.0",  # keep in step with .pre-commit-config.yaml
 ]
 
 [project.scripts]
@@ -60,3 +62,18 @@ ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "alembic/env.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+files = ["src", "tests", "alembic"]
+exclude = ["^alembic/script\\.py\\.mako$"]
+
+# Tests are type-checked, but pytest fixtures and test functions need not be annotated.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
