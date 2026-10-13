@@ -1,7 +1,7 @@
-"""Balance reads and a sandbox-only journal endpoint.
+"""Balance reads for the signed-in owner, and a sandbox-only journal endpoint.
 
 The journal route exists so the ledger can be demonstrated. Customer top-ups
-will not post through it; week 2 posts from an STK callback, idempotently.
+do not post through it; they post from the STK callback, idempotently.
 """
 
 from __future__ import annotations
@@ -13,19 +13,39 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from xmoney.auth.deps import current_user
+from xmoney.auth.service import SessionUser
 from xmoney.config import get_settings
 from xmoney.db import get_db
-from xmoney.errors import LedgerError, SandboxViolation
-from xmoney.ledger.models import JournalEntry, Posting
+from xmoney.errors import AccountNotFound, LedgerError, SandboxViolation
+from xmoney.ledger.models import JournalEntry, LedgerAccount, Posting
 from xmoney.ledger.schemas import BalanceOut, JournalEntryOut, PostEntryIn, PostingOut
-from xmoney.ledger.service import get_balance, post_entry
+from xmoney.ledger.service import AccountBalance, get_balance, post_entry
 
 router = APIRouter(tags=["ledger"])
 
 
+@router.get("/me/balance", response_model=BalanceOut)
+def read_my_balance(
+    user: SessionUser = Depends(current_user), session: Session = Depends(get_db)
+) -> BalanceOut:
+    return _balance_out(get_balance(session, user.wallet_account_id))
+
+
 @router.get("/accounts/{account_id}/balance", response_model=BalanceOut)
-def read_balance(account_id: UUID, session: Session = Depends(get_db)) -> BalanceOut:
-    balance = get_balance(session, account_id)
+def read_balance(
+    account_id: UUID,
+    user: SessionUser = Depends(current_user),
+    session: Session = Depends(get_db),
+) -> BalanceOut:
+    """Only the account's owner may read it. Anything else is a 404, so ids reveal nothing."""
+    account = session.get(LedgerAccount, account_id)
+    if account is None or account.owner_user_id != user.user_id:
+        raise AccountNotFound(f"unknown account {account_id}")
+    return _balance_out(get_balance(session, account_id))
+
+
+def _balance_out(balance: AccountBalance) -> BalanceOut:
     return BalanceOut(
         account_id=balance.account_id,
         code=balance.code,

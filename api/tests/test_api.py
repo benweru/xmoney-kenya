@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
+from xmoney.ledger.service import get_balance
 from xmoney.ledger.system import MPESA_FLOAT
 
 
@@ -34,16 +37,11 @@ def test_register_and_lookup_round_trip(client) -> None:
 
     found = client.get("/v1/handles/AMINA")
     assert found.status_code == 200
-    assert found.json() == {
-        "handle": "amina",
-        "user_id": body["id"],
-        "wallet_account_id": body["wallet_account_id"],
-    }
-    assert "phone" not in found.json()
+    assert found.json() == {"handle": "amina"}
 
     encoded = client.get("/v1/handles/%40amina")
     assert encoded.status_code == 200
-    assert encoded.json()["user_id"] == body["id"]
+    assert encoded.json() == {"handle": "amina"}
 
     missing = client.get("/v1/handles/otieno")
     assert missing.status_code == 404
@@ -68,12 +66,12 @@ def test_invalid_phone_and_unknown_balance(client) -> None:
         json={"handle": "amina", "phone": "+254712345678", "pin": "2580", "role": "admin"},
     )
     assert extra.status_code == 422
-    missing = client.get("/v1/accounts/00000000-0000-4000-8000-000000000099/balance")
-    assert missing.status_code == 404
-    assert missing.json()["error"] == "account_not_found"
+    anonymous = client.get("/v1/accounts/00000000-0000-4000-8000-000000000099/balance")
+    assert anonymous.status_code == 401
+    assert anonymous.json()["error"] == "not_authenticated"
 
 
-def test_sandbox_journal_is_idempotent(client) -> None:
+def test_sandbox_journal_is_idempotent(client, db) -> None:
     created = client.post(
         "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
     )
@@ -107,15 +105,11 @@ def test_sandbox_journal_is_idempotent(client) -> None:
     assert conflict.status_code == 409
     assert conflict.json()["error"] == "idempotency_conflict"
 
-    balance = client.get(f"/v1/accounts/{wallet}/balance")
-    assert balance.status_code == 200
-    assert balance.json()["balance_cents"] == 5000
-    assert balance.json()["currency"] == "KES"
-    float_balance = client.get(f"/v1/accounts/{MPESA_FLOAT.id}/balance")
-    assert float_balance.json()["balance_cents"] == 5000
+    assert get_balance(db, UUID(wallet)).balance_cents == 5000
+    assert get_balance(db, MPESA_FLOAT.id).balance_cents == 5000
 
 
-def test_sandbox_journal_rejects_coerced_amounts(client) -> None:
+def test_sandbox_journal_rejects_coerced_amounts(client, db) -> None:
     created = client.post(
         "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
     )
@@ -133,4 +127,4 @@ def test_sandbox_journal_rejects_coerced_amounts(client) -> None:
             },
         )
         assert response.status_code == 422, amount
-    assert client.get(f"/v1/accounts/{wallet}/balance").json()["balance_cents"] == 0
+    assert get_balance(db, UUID(wallet)).balance_cents == 0
