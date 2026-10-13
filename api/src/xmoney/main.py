@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
@@ -40,7 +41,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    get_settings()
+    settings = get_settings()
     app = FastAPI(
         title="X Money for Kenya",
         version=__version__,
@@ -64,6 +65,15 @@ def create_app() -> FastAPI:
         response.headers["X-Sandbox"] = "true"
         response.headers["X-Moves-Real-Money"] = "false"
         return response
+
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT"],
+            allow_headers=["Content-Type", "Idempotency-Key"],
+        )
 
     @app.exception_handler(XMoneyError)
     def handle_domain_error(_request: Request, exc: XMoneyError) -> JSONResponse:

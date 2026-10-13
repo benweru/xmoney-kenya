@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Proxies in front of the API that append to X-Forwarded-For (CloudFront + ALB = 2).
     # Leave at 0 when the API is reached directly, or clients could forge their IP.
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+    # Browser origins allowed to call the API with cookies; only `next dev` needs one.
+    # The compose stack and AWS serve the web app and the API from one origin.
+    cors_origins: list[str] = []
 
     @model_validator(mode="after")
     def refuse_real_money(self) -> Settings:

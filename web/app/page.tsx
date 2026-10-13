@@ -1,37 +1,73 @@
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+"use client";
 
-export default function Home() {
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+import { ShieldIcon, SendIcon, TopUpIcon } from "@/components/icons";
+import { PublicShell } from "@/components/public-shell";
+import { ButtonLink } from "@/components/ui";
+import { useMe } from "@/lib/api/hooks";
+
+const FEATURES = [
+  {
+    icon: TopUpIcon,
+    title: "Top up from M-PESA",
+    body: "An STK prompt on your phone, then your balance updates the moment M-PESA confirms.",
+  },
+  {
+    icon: SendIcon,
+    title: "Send to an @handle",
+    body: "Pay @amina instead of typing a phone number. Every send happens exactly once.",
+  },
+  {
+    icon: ShieldIcon,
+    title: "Built like a real wallet",
+    body: "A double-entry ledger in Postgres that cannot be unbalanced, and no overdrafts.",
+  },
+] as const;
+
+export default function Welcome() {
+  const me = useMe();
+  const router = useRouter();
+  useEffect(() => {
+    if (me.data) router.replace("/home/");
+  }, [me.data, router]);
+
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-8 px-6 py-16">
-      <div
-        role="note"
-        className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
-      >
-        <strong>Sandbox only.</strong> This prototype cannot move real money. It is not a licensed
-        payment service and is not affiliated with X Corp or Safaricom.
-      </div>
-
-      <header className="flex flex-col gap-3">
-        <h1 className="text-4xl font-semibold tracking-tight">X Money for Kenya</h1>
-        <p className="text-lg opacity-80">
-          Pay anyone by <span className="font-mono">@handle</span>. Top up from M-PESA, send to{" "}
-          <span className="font-mono">@amina</span>, cash out to M-PESA.
+    <PublicShell>
+      <section className="flex flex-col gap-4 pt-4">
+        <p className="w-fit rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-strong">
+          Sandbox demo · KES
         </p>
-      </header>
-
-      <section className="flex flex-col gap-2 text-sm opacity-80">
-        <p>
-          The wallet app is not built yet. This page is the placeholder for the Next.js frontend;
-          sign-in, top-up, send, and history arrive in later milestones.
-        </p>
-        <p>
-          The API is running at{" "}
-          <a className="underline underline-offset-4" href={`${apiUrl}/docs`}>
-            {apiUrl}/docs
-          </a>
-          .
+        <h1 className="text-4xl leading-[1.05] font-extrabold tracking-tight">
+          Pay anyone in Kenya by <span className="text-brand">@handle</span>.
+        </h1>
+        <p className="text-base text-muted">
+          Top up from M-PESA, send to a handle, and see every shilling in your history. Try it with
+          a test number. Nothing here moves real money.
         </p>
       </section>
-    </main>
+
+      <div className="flex flex-col gap-3">
+        <ButtonLink href="/register/">Create a wallet</ButtonLink>
+        <ButtonLink href="/sign-in/" variant="secondary">
+          I already have one
+        </ButtonLink>
+      </div>
+
+      <ul className="flex flex-col gap-3">
+        {FEATURES.map(({ icon: FeatureIcon, title, body }) => (
+          <li key={title} className="flex gap-4 rounded-3xl border border-line bg-white p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-brand-soft text-brand">
+              <FeatureIcon className="size-5" />
+            </span>
+            <span className="flex flex-col gap-0.5">
+              <span className="font-semibold">{title}</span>
+              <span className="text-sm text-muted">{body}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </PublicShell>
   );
 }

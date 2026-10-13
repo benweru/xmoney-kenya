@@ -1,0 +1,190 @@
+"use client";
+
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+
+import { api, ApiError, newIdempotencyKey, unwrap, type Me, type Topup } from "./client";
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    defaultError: ApiError;
+  }
+}
+
+export const keys = {
+  me: ["me"] as const,
+  balance: ["balance"] as const,
+  history: ["history"] as const,
+  topup: (id: string) => ["topup", id] as const,
+  inbox: (phone: string) => ["inbox", phone] as const,
+};
+
+/** The signed-in user, or null when there is no session. Other errors still throw. */
+export function useMe() {
+  return useQuery({
+    queryKey: keys.me,
+    queryFn: async (): Promise<Me | null> => {
+      try {
+        return await unwrap(api.GET("/v1/me"));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) return null;
+        throw error;
+      }
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useBalance() {
+  return useQuery({
+    queryKey: keys.balance,
+    queryFn: () => unwrap(api.GET("/v1/me/balance")),
+  });
+}
+
+export function useHistory(pageSize = 20) {
+  return useInfiniteQuery({
+    queryKey: [...keys.history, pageSize],
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        api.GET("/v1/me/transactions", {
+          params: { query: { limit: pageSize, cursor: pageParam ?? undefined } },
+        }),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next_cursor,
+  });
+}
+
+/** Newest first. The demo shows codes here instead of sending an SMS. */
+export function useInbox(phone: string | null, enabled = true) {
+  return useQuery({
+    queryKey: keys.inbox(phone ?? ""),
+    queryFn: () => unwrap(api.GET("/v1/sandbox/inbox", { params: { query: { phone: phone! } } })),
+    enabled: enabled && !!phone,
+    refetchInterval: 3_000,
+  });
+}
+
+export function useRegister() {
+  return useMutation({
+    mutationFn: (body: { handle: string; phone: string; pin: string }) =>
+      unwrap(api.POST("/v1/users", { body })),
+  });
+}
+
+export function useStartSignIn() {
+  return useMutation({
+    mutationFn: (body: { phone: string; pin: string }) =>
+      unwrap(api.POST("/v1/auth/sign-in", { body })),
+  });
+}
+
+export function useVerifySignIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { challenge_id: string; code: string }) =>
+      unwrap(api.POST("/v1/auth/verify", { body })),
+    onSuccess: (me) => {
+      resetWallet(queryClient);
+      queryClient.setQueryData(keys.me, me);
+    },
+  });
+}
+
+export function useSignOut() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/auth/sign-out")),
+    onSettled: () => {
+      resetWallet(queryClient);
+      queryClient.setQueryData(keys.me, null);
+    },
+  });
+}
+
+export function useLookupHandle() {
+  return useMutation({
+    mutationFn: (handle: string) =>
+      unwrap(api.GET("/v1/handles/{handle}", { params: { path: { handle } } })),
+  });
+}
+
+/** One key per confirmed send, so a retried request can never send twice. */
+export function useSend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      idempotencyKey,
+      ...body
+    }: {
+      to: string;
+      amount_cents: number;
+      note?: string | null;
+      idempotencyKey: string;
+    }) =>
+      unwrap(
+        api.POST("/v1/transfers", {
+          body,
+          params: { header: { "Idempotency-Key": idempotencyKey } },
+        }),
+      ),
+    onSuccess: () => refreshWallet(queryClient),
+  });
+}
+
+export function useStartTopup() {
+  return useMutation({
+    mutationFn: ({
+      idempotencyKey,
+      ...body
+    }: {
+      amount_cents: number;
+      phone?: string | null;
+      idempotencyKey: string;
+    }) =>
+      unwrap(
+        api.POST("/v1/topups", { body, params: { header: { "Idempotency-Key": idempotencyKey } } }),
+      ),
+  });
+}
+
+const FINAL_TOPUP = new Set(["succeeded", "failed", "expired"]);
+
+export function isFinalTopup(topup: Topup | undefined): boolean {
+  return !!topup && FINAL_TOPUP.has(topup.status);
+}
+
+/** Poll a top-up until M-PESA gives a final answer, then refresh the balance once. */
+export function useTopupStatus(id: string | null) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: keys.topup(id ?? ""),
+    enabled: !!id,
+    queryFn: async () => {
+      const topup = await unwrap(
+        api.GET("/v1/topups/{topup_id}", { params: { path: { topup_id: id! } } }),
+      );
+      if (isFinalTopup(topup)) refreshWallet(queryClient);
+      return topup;
+    },
+    refetchInterval: (query) => (isFinalTopup(query.state.data) ? false : 1_500),
+  });
+}
+
+export { newIdempotencyKey };
+
+function refreshWallet(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: keys.balance });
+  void queryClient.invalidateQueries({ queryKey: keys.history });
+}
+
+function resetWallet(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: keys.balance });
+  queryClient.removeQueries({ queryKey: keys.history });
+}

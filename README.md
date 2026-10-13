@@ -6,6 +6,17 @@ A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insen
 >
 > "X Money for Kenya" is the name of an independent portfolio project. It is not built, endorsed, or sponsored by X Corp. (or its X Money product), Safaricom, or IntaSend. It does not hold a Central Bank of Kenya licence and **cannot move real money**. The process refuses to start unless sandbox mode is on, and both the settings loader and the Daraja client refuse every Safaricom host except `sandbox.safaricom.co.ke`. Nothing in this repository is an offer to store, transmit, or settle customer funds.
 
+## The wallet app
+
+A mobile-first PWA in [`web/`](web/): register with a handle, a phone, and a PIN, sign in with a code from the sandbox inbox, top up through an M-PESA STK prompt with a live status, send to an @handle, and read your history. `make demo` runs it on <http://localhost:3000> against the Daraja mock.
+
+<p>
+  <img src="docs/images/wallet-home.png" alt="Home: balance and recent activity" width="200" />
+  <img src="docs/images/wallet-top-up.png" alt="Top-up waiting for M-PESA" width="200" />
+  <img src="docs/images/wallet-send.png" alt="Confirming a send to @baraka" width="200" />
+  <img src="docs/images/wallet-history.png" alt="Transaction history" width="200" />
+</p>
+
 ## What a Kenya launch would need
 
 The software in this repo is the shape of a wallet, not permission to run one. A real launch would still need, and this project does not provide:
@@ -22,7 +33,7 @@ Milestone M4 of the roadmap is a write-up of that gap. It is not a shortcut thro
 
 ```text
 api/        FastAPI backend: ledger, @handles, payments seam, Daraja mock, Alembic, pytest
-web/        Next.js + TypeScript wallet app (placeholder for now)
+web/        Next.js + TypeScript wallet PWA, Playwright e2e tests
 docs/adr/   architecture decision records
 docker/     Postgres init scripts for docker compose
 ```
@@ -235,7 +246,7 @@ make run        # API with reload
 make run-web    # web app, in another terminal
 ```
 
-The API listens on <http://127.0.0.1:8000>. Interactive docs are at <http://127.0.0.1:8000/docs>. The web app listens on <http://127.0.0.1:3000>. `api/.env.example` lists the sandbox variables. `make setup` copies it to `api/.env` if you do not already have one.
+The API listens on <http://127.0.0.1:8000>. Interactive docs are at <http://127.0.0.1:8000/docs>. The web app listens on <http://127.0.0.1:3000>. Under `make demo` it is the static build behind nginx, which proxies `/api/*` to the API on the same origin. Under `make run-web` it is `next dev`, which calls `:8000` directly and needs `CORS_ORIGINS` in `api/.env`. `api/.env.example` lists the sandbox variables. `make setup` copies it to `api/.env` if you do not already have one.
 
 ```bash
 curl -s localhost:8000/health
@@ -277,13 +288,19 @@ Every response carries `X-Sandbox: true` and `X-Moves-Real-Money: false`.
 ```bash
 make lint        # ruff, mypy, ESLint, and Prettier
 make test        # pytest for the API, typecheck and build for the web app
+make e2e         # Playwright against a running `make demo`
 make migrate-check
 make pre-commit  # every pre-commit hook against every file
 ```
 
 `make setup` installs the [pre-commit](https://pre-commit.com/) hooks in `.pre-commit-config.yaml`: ruff (lint and format) and strict mypy for `api/`, ESLint and Prettier for `web/`, plus whitespace and YAML/TOML/JSON checks. Branch naming and the PR flow are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs three jobs: `api` (ruff, mypy, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16), `web` (ESLint, Prettier, typecheck, build), and `compose` (builds the demo stack and smoke-tests both apps).
+Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs four jobs:
+
+- `api`: ruff, strict mypy, a check that `openapi.json` is current, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16.
+- `web`: ESLint, Prettier, a check that the typed client matches `openapi.json`, typecheck, and build.
+- `compose`: builds the demo stack and smoke-tests both apps.
+- `e2e`: Playwright on a mobile viewport against the compose stack on the Daraja mock (see [`web/README.md`](web/README.md#end-to-end-tests)).
 
 Coverage that matters for a ledger:
 
