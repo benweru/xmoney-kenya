@@ -26,6 +26,7 @@ from xmoney.payments.provider import (
     StkCallback,
     StkPushAccepted,
     StkPushRequest,
+    StkQueryResult,
 )
 from xmoney.sandbox import assert_sandbox_daraja_host
 
@@ -36,6 +37,9 @@ RESULT_CODES: dict[Outcome, tuple[int, str]] = {
     Outcome.INSUFFICIENT_FUNDS: (1, "The balance is insufficient for the transaction."),
 }
 _OUTCOME_BY_CODE = {code: outcome for outcome, (code, _desc) in RESULT_CODES.items()}
+
+# STK Query answers HTTP 500 with this code while the customer has not responded.
+_STILL_PROCESSING = "500.001.1001"
 
 # Daraja documents a per-transaction cap. The sandbox mock enforces the same bound.
 _MAX_STK_SHILLINGS = 250_000
@@ -83,7 +87,7 @@ def parse_stk_callback(payload: object) -> StkCallback:
 
 
 class DarajaHttpProvider:
-    """HTTP adapter for the local mock and, later, the Daraja sandbox."""
+    """HTTP adapter for the local mock and the Daraja sandbox."""
 
     name = "daraja"
 
@@ -183,6 +187,47 @@ class DarajaHttpProvider:
                 f"{accepted.response_description}"
             )
         return accepted
+
+    def stk_query(self, checkout_request_id: str) -> StkQueryResult:
+        if not isinstance(checkout_request_id, str) or not checkout_request_id.strip():
+            raise InvalidPaymentRequest("checkout_request_id is required")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+        token = self.obtain_token()
+        response = self._client.post(
+            self._url("mpesa/stkpushquery/v1/query"),
+            json={
+                "BusinessShortCode": self.shortcode,
+                "Password": daraja_password(self.shortcode, self.passkey, timestamp),
+                "Timestamp": timestamp,
+                "CheckoutRequestID": checkout_request_id,
+            },
+            headers={"Authorization": f"Bearer {token.token}"},
+        )
+        body = _json_or_empty(response)
+        if str(body.get("errorCode", "")) == _STILL_PROCESSING:
+            return StkQueryResult(
+                checkout_request_id=checkout_request_id,
+                processing=True,
+                result_code=None,
+                result_desc=_error_message(body, "The transaction is being processed"),
+                outcome=None,
+            )
+        if response.status_code != 200:
+            raise ProviderError(
+                _error_message(body, "STK query was rejected"),
+                status_code=response.status_code,
+            )
+        try:
+            result_code = int(body["ResultCode"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderError("STK query response was missing ResultCode") from exc
+        return StkQueryResult(
+            checkout_request_id=checkout_request_id,
+            processing=False,
+            result_code=result_code,
+            result_desc=str(body.get("ResultDesc", "")),
+            outcome=_OUTCOME_BY_CODE.get(result_code),
+        )
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)

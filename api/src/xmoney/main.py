@@ -7,16 +7,24 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
 from xmoney import __version__
+from xmoney.auth.routes import router as auth_router
 from xmoney.config import get_settings
-from xmoney.errors import XMoneyError
+from xmoney.errors import RateLimited, XMoneyError
+from xmoney.history.routes import router as history_router
 from xmoney.identity.routes import router as identity_router
+from xmoney.inbox.routes import router as inbox_router
 from xmoney.ledger.routes import router as ledger_router
 from xmoney.payments.daraja_mock import DarajaMockState, build_daraja_router
+from xmoney.payments.routes import router as payments_router
+from xmoney.ratelimit.deps import limit_by_ip
+from xmoney.ratelimit.service import EVERY_REQUEST
+from xmoney.transfers.routes import router as transfers_router
 
 logger = logging.getLogger("xmoney")
 
@@ -33,7 +41,7 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    get_settings()
+    settings = get_settings()
     app = FastAPI(
         title="X Money for Kenya",
         version=__version__,
@@ -58,11 +66,22 @@ def create_app() -> FastAPI:
         response.headers["X-Moves-Real-Money"] = "false"
         return response
 
+    if settings.cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["GET", "POST", "PUT"],
+            allow_headers=["Content-Type", "Idempotency-Key"],
+        )
+
     @app.exception_handler(XMoneyError)
     def handle_domain_error(_request: Request, exc: XMoneyError) -> JSONResponse:
+        headers = {"Retry-After": str(exc.retry_after)} if isinstance(exc, RateLimited) else None
         return JSONResponse(
             status_code=exc.http_status,
             content={"error": exc.code, "message": str(exc)},
+            headers=headers,
         )
 
     @app.get("/", tags=["meta"])
@@ -85,9 +104,18 @@ def create_app() -> FastAPI:
             "moves_real_money": False,
         }
 
-    app.include_router(identity_router, prefix="/v1")
-    app.include_router(ledger_router, prefix="/v1")
-    app.include_router(build_daraja_router(), prefix="/sandbox/daraja")
+    every_request = [Depends(limit_by_ip(EVERY_REQUEST))]
+    for router in (
+        identity_router,
+        auth_router,
+        inbox_router,
+        payments_router,
+        transfers_router,
+        history_router,
+        ledger_router,
+    ):
+        app.include_router(router, prefix="/v1", dependencies=every_request)
+    app.include_router(build_daraja_router(), prefix="/sandbox/daraja", dependencies=every_request)
     return app
 
 

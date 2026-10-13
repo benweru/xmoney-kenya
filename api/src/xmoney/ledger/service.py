@@ -1,13 +1,16 @@
 """Post balanced journal entries and read balances from postings.
 
-`post_entry` commits. It locks every account it touches, in id order, so
-concurrent posts cannot deadlock. Spend limits are not applied here: a wallet
-may go negative until week 3 adds transfer rules. The database still rejects
-an entry whose debits do not equal its credits, and it rejects updates.
+`post_entry` commits. `post_entry_in_transaction` posts inside the caller's
+transaction, for flows such as an STK callback where a payment row and its
+entry must commit together. Both lock every account they touch, in id order,
+so concurrent posts cannot deadlock. Spend limits are not applied here. The
+database still rejects an entry whose debits do not equal its credits, and it
+rejects updates.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
@@ -23,6 +26,7 @@ from xmoney.ledger.system import SYSTEM_ACCOUNTS
 
 _UNIQUE_VIOLATION = "23505"
 _CHECK_VIOLATION = "23514"
+_RETRIES = 5
 
 
 @dataclass(frozen=True)
@@ -54,55 +58,79 @@ def seed_system_accounts(session: Session) -> None:
 
 
 def post_entry(session: Session, command: PostCommand) -> PostResult:
-    """Insert a balanced entry, or return the original when the key is reused."""
+    """Insert a balanced entry in its own transaction, or return the original on replay."""
     command = validate_command(command)
     digest = request_hash(command)
     release_read_transaction(session)
 
-    for _ in range(5):
+    for _ in range(_RETRIES):
         try:
             with session.begin():
-                existing = session.scalar(
-                    select(JournalEntry).where(
-                        JournalEntry.idempotency_key == command.idempotency_key
-                    )
-                )
-                if existing is not None:
-                    _assert_same_request(existing, digest)
-                    result = PostResult(
-                        entry_id=existing.id,
-                        idempotency_key=existing.idempotency_key,
-                        request_hash=existing.request_hash,
-                        created=False,
-                    )
-                else:
-                    entry_id = uuid4()
-                    session.add(
-                        JournalEntry(
-                            id=entry_id,
-                            idempotency_key=command.idempotency_key,
-                            request_hash=digest,
-                            description=command.description,
-                            external_ref=command.external_ref,
-                        )
-                    )
-                    session.flush()
-                    _lock_accounts_and_post(session, entry_id, command)
-                    result = PostResult(
-                        entry_id=entry_id,
-                        idempotency_key=command.idempotency_key,
-                        request_hash=digest,
-                        created=True,
-                    )
+                result = _post_once(session, command, digest)
             return result
         except IntegrityError as exc:
-            state = _sqlstate(exc)
-            if state == _UNIQUE_VIOLATION:
-                continue
-            if state == _CHECK_VIOLATION and "unbalanced" in str(exc):
-                raise UnbalancedEntry("journal entry is unbalanced") from exc
-            raise
+            _reraise_unless_key_race(exc)
     raise LedgerError("could not post the journal entry after concurrent retries")
+
+
+def post_entry_in_transaction(session: Session, command: PostCommand) -> PostResult:
+    """Post inside the caller's transaction, so the entry commits with the caller's rows.
+
+    The insert runs under a savepoint. Losing an idempotency-key race rolls back
+    only the savepoint, and the retry returns the winner's entry. Nothing is
+    visible to other sessions until the caller commits.
+    """
+    command = validate_command(command)
+    digest = request_hash(command)
+    for _ in range(_RETRIES):
+        try:
+            with session.begin_nested():
+                return _post_once(session, command, digest)
+        except IntegrityError as exc:
+            _reraise_unless_key_race(exc)
+    raise LedgerError("could not post the journal entry after concurrent retries")
+
+
+def _post_once(session: Session, command: PostCommand, digest: str) -> PostResult:
+    existing = session.scalar(
+        select(JournalEntry).where(JournalEntry.idempotency_key == command.idempotency_key)
+    )
+    if existing is not None:
+        _assert_same_request(existing, digest)
+        return PostResult(
+            entry_id=existing.id,
+            idempotency_key=existing.idempotency_key,
+            request_hash=existing.request_hash,
+            created=False,
+        )
+    entry_id = uuid4()
+    session.add(
+        JournalEntry(
+            id=entry_id,
+            idempotency_key=command.idempotency_key,
+            request_hash=digest,
+            description=command.description,
+            external_ref=command.external_ref,
+        )
+    )
+    session.flush()
+    _lock_accounts_and_post(session, entry_id, command)
+    session.flush()
+    return PostResult(
+        entry_id=entry_id,
+        idempotency_key=command.idempotency_key,
+        request_hash=digest,
+        created=True,
+    )
+
+
+def _reraise_unless_key_race(exc: IntegrityError) -> None:
+    state = _sqlstate(exc)
+    if state == _UNIQUE_VIOLATION:
+        return
+    if state == _CHECK_VIOLATION and "unbalanced" in str(exc):
+        raise UnbalancedEntry("journal entry is unbalanced") from exc
+    raise exc
 
 
 def get_balance(session: Session, account_id: UUID) -> AccountBalance:
@@ -145,18 +173,28 @@ def _assert_same_request(existing: JournalEntry, digest: str) -> None:
         raise IdempotencyConflict("idempotency key was already used with a different journal entry")
 
 
-def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostCommand) -> None:
-    account_ids = sorted({line.account_id for line in command.postings})
+def lock_accounts(session: Session, account_ids: Iterable[UUID]) -> Sequence[LedgerAccount]:
+    """Lock accounts in id order, the order every poster uses, so lockers cannot deadlock.
+
+    Balances read after this, in the same transaction, include every committed
+    posting and cannot change until the transaction ends.
+    """
+    ordered = sorted(set(account_ids))
     rows = session.scalars(
         select(LedgerAccount)
-        .where(LedgerAccount.id.in_(account_ids))
+        .where(LedgerAccount.id.in_(ordered))
         .order_by(LedgerAccount.id)
         .with_for_update()
     ).all()
     found = {row.id for row in rows}
-    missing = [str(account_id) for account_id in account_ids if account_id not in found]
+    missing = [str(account_id) for account_id in ordered if account_id not in found]
     if missing:
         raise AccountNotFound("unknown account(s): " + ", ".join(missing))
+    return rows
+
+
+def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostCommand) -> None:
+    rows = lock_accounts(session, (line.account_id for line in command.postings))
     for row in rows:
         if row.currency != "KES":
             raise LedgerError(f"account {row.code} is not a KES account")

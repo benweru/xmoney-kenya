@@ -13,6 +13,7 @@ class RegisterIn(BaseModel):
 
     handle: str = Field(examples=["@amina"])
     phone: str = Field(examples=["+254712345678"])
+    pin: str = Field(examples=["2580"], description="4-6 digits; stored only as an Argon2id hash")
 
 
 class UserOut(BaseModel):
@@ -24,6 +25,6 @@ class UserOut(BaseModel):
 
 
 class HandleOut(BaseModel):
+    """Public. Enough to confirm a recipient exists, nothing that identifies a wallet."""
+
     handle: str
-    user_id: UUID
-    wallet_account_id: UUID

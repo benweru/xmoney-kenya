@@ -1,7 +1,10 @@
-"""HTTP surface for health, handles, and the sandbox journal."""
+"""HTTP surface for health, handles, and the local-development journal."""
 
 from __future__ import annotations
 
+from uuid import UUID
+
+from xmoney.ledger.service import get_balance
 from xmoney.ledger.system import MPESA_FLOAT
 
 
@@ -23,7 +26,9 @@ def test_health_and_root_declare_the_sandbox(client) -> None:
 
 
 def test_register_and_lookup_round_trip(client) -> None:
-    created = client.post("/v1/users", json={"handle": "@Amina", "phone": "+254712345678"})
+    created = client.post(
+        "/v1/users", json={"handle": "@Amina", "phone": "+254712345678", "pin": "2580"}
+    )
     assert created.status_code == 201
     body = created.json()
     assert body["handle"] == "amina"
@@ -32,16 +37,11 @@ def test_register_and_lookup_round_trip(client) -> None:
 
     found = client.get("/v1/handles/AMINA")
     assert found.status_code == 200
-    assert found.json() == {
-        "handle": "amina",
-        "user_id": body["id"],
-        "wallet_account_id": body["wallet_account_id"],
-    }
-    assert "phone" not in found.json()
+    assert found.json() == {"handle": "amina"}
 
     encoded = client.get("/v1/handles/%40amina")
     assert encoded.status_code == 200
-    assert encoded.json()["user_id"] == body["id"]
+    assert encoded.json() == {"handle": "amina"}
 
     missing = client.get("/v1/handles/otieno")
     assert missing.status_code == 404
@@ -49,28 +49,33 @@ def test_register_and_lookup_round_trip(client) -> None:
 
     duplicate = client.post(
         "/v1/users",
-        json={"handle": "amina", "phone": "+254700000000"},
+        json={"handle": "amina", "phone": "+254700000000", "pin": "2580"},
     )
     assert duplicate.status_code == 409
     assert duplicate.json()["error"] == "handle_taken"
 
 
 def test_invalid_phone_and_unknown_balance(client) -> None:
-    rejected = client.post("/v1/users", json={"handle": "amina", "phone": "0712345678"})
+    rejected = client.post(
+        "/v1/users", json={"handle": "amina", "phone": "0712345678", "pin": "2580"}
+    )
     assert rejected.status_code == 422
     assert rejected.json()["error"] == "invalid_phone"
     extra = client.post(
         "/v1/users",
-        json={"handle": "amina", "phone": "+254712345678", "role": "admin"},
+        json={"handle": "amina", "phone": "+254712345678", "pin": "2580", "role": "admin"},
     )
     assert extra.status_code == 422
-    missing = client.get("/v1/accounts/00000000-0000-4000-8000-000000000099/balance")
-    assert missing.status_code == 404
-    assert missing.json()["error"] == "account_not_found"
+    anonymous = client.get("/v1/accounts/00000000-0000-4000-8000-000000000099/balance")
+    assert anonymous.status_code == 401
+    assert anonymous.json()["error"] == "not_authenticated"
 
 
-def test_sandbox_journal_is_idempotent(client) -> None:
-    created = client.post("/v1/users", json={"handle": "amina", "phone": "+254712345678"})
+def test_sandbox_journal_is_idempotent(client, db, configure) -> None:
+    configure(SANDBOX_JOURNAL_ENABLED="true")
+    created = client.post(
+        "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
+    )
     wallet = created.json()["wallet_account_id"]
     payload = {
         "idempotency_key": "api-demo-1",
@@ -101,16 +106,15 @@ def test_sandbox_journal_is_idempotent(client) -> None:
     assert conflict.status_code == 409
     assert conflict.json()["error"] == "idempotency_conflict"
 
-    balance = client.get(f"/v1/accounts/{wallet}/balance")
-    assert balance.status_code == 200
-    assert balance.json()["balance_cents"] == 5000
-    assert balance.json()["currency"] == "KES"
-    float_balance = client.get(f"/v1/accounts/{MPESA_FLOAT.id}/balance")
-    assert float_balance.json()["balance_cents"] == 5000
+    assert get_balance(db, UUID(wallet)).balance_cents == 5000
+    assert get_balance(db, MPESA_FLOAT.id).balance_cents == 5000
 
 
-def test_sandbox_journal_rejects_coerced_amounts(client) -> None:
-    created = client.post("/v1/users", json={"handle": "amina", "phone": "+254712345678"})
+def test_sandbox_journal_rejects_coerced_amounts(client, db, configure) -> None:
+    configure(SANDBOX_JOURNAL_ENABLED="true")
+    created = client.post(
+        "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
+    )
     wallet = created.json()["wallet_account_id"]
     for amount in (5000.0, "5000"):
         response = client.post(
@@ -125,4 +129,4 @@ def test_sandbox_journal_rejects_coerced_amounts(client) -> None:
             },
         )
         assert response.status_code == 422, amount
-    assert client.get(f"/v1/accounts/{wallet}/balance").json()["balance_cents"] == 0
+    assert get_balance(db, UUID(wallet)).balance_cents == 0

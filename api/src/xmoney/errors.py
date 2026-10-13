@@ -86,6 +86,65 @@ class ProviderError(XMoneyError):
             self.http_status = status_code
 
 
+class InvalidPin(XMoneyError):
+    code = "invalid_pin"
+    http_status = 422
+
+
+class InvalidCredentials(XMoneyError):
+    code = "invalid_credentials"
+    http_status = 401
+
+
+class AccountLocked(XMoneyError):
+    code = "account_locked"
+    http_status = 423
+
+
+class InvalidOtp(XMoneyError):
+    code = "invalid_otp"
+    http_status = 401
+
+
+class NotAuthenticated(XMoneyError):
+    code = "not_authenticated"
+    http_status = 401
+
+
+class TopupNotFound(XMoneyError):
+    code = "topup_not_found"
+    http_status = 404
+
+
+class InsufficientFunds(XMoneyError):
+    code = "insufficient_funds"
+    http_status = 422
+
+
+class InvalidTransfer(XMoneyError):
+    code = "invalid_transfer"
+    http_status = 422
+
+
+class InvalidCursor(XMoneyError):
+    code = "invalid_cursor"
+    http_status = 422
+
+
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403
+
+
+class NotFound(XMoneyError):
+    code = "not_found"
+    http_status = 404
+
+
+class RateLimited(XMoneyError):
+    code = "rate_limited"
+    http_status = 429
+
+    def __init__(self, message: str, *, retry_after: int) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
