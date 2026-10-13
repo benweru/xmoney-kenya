@@ -13,6 +13,8 @@ from xmoney.db import get_db
 from xmoney.errors import SandboxViolation
 from xmoney.identity.validators import normalize_phone
 from xmoney.inbox.service import recent_messages
+from xmoney.ratelimit.deps import limit_by_ip
+from xmoney.ratelimit.service import READ_INBOX
 
 router = APIRouter(tags=["sandbox"])
 
@@ -22,7 +24,11 @@ class InboxMessageOut(BaseModel):
     created_at: datetime
 
 
-@router.get("/sandbox/inbox", response_model=list[InboxMessageOut])
+@router.get(
+    "/sandbox/inbox",
+    response_model=list[InboxMessageOut],
+    dependencies=[Depends(limit_by_ip(READ_INBOX))],
+)
 def read_inbox(phone: str, session: Session = Depends(get_db)) -> list[InboxMessageOut]:
     """Newest first. Anyone can read any phone's inbox, which is only acceptable in a sandbox."""
     if get_settings().sandbox_mode is not True:

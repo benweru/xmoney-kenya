@@ -1,7 +1,8 @@
-"""Balance reads for the signed-in owner, and a sandbox-only journal endpoint.
+"""Balance reads for the signed-in owner, and a local-development journal endpoint.
 
-The journal route exists so the ledger can be demonstrated. Customer top-ups
-do not post through it; they post from the STK callback, idempotently.
+The journal route exists so the ledger can be demonstrated on a laptop. It is
+off by default. Customer top-ups do not post through it; they post from the
+STK callback, idempotently.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from xmoney.auth.deps import current_user
 from xmoney.auth.service import SessionUser
 from xmoney.config import get_settings
 from xmoney.db import get_db
-from xmoney.errors import AccountNotFound, LedgerError, SandboxViolation
+from xmoney.errors import AccountNotFound, LedgerError, NotFound, SandboxViolation
 from xmoney.ledger.models import JournalEntry, LedgerAccount, Posting
 from xmoney.ledger.schemas import BalanceOut, JournalEntryOut, PostEntryIn, PostingOut
 from xmoney.ledger.service import AccountBalance, get_balance, post_entry
@@ -57,15 +58,26 @@ def _balance_out(balance: AccountBalance) -> BalanceOut:
     )
 
 
+def require_sandbox_journal() -> None:
+    settings = get_settings()
+    if settings.sandbox_mode is not True:
+        raise SandboxViolation("journal posting is disabled outside sandbox mode")
+    if not settings.sandbox_journal_enabled:
+        raise NotFound("not found")
+
+
 @router.post(
     "/sandbox/journal-entries",
     response_model=JournalEntryOut,
     responses={200: {"model": JournalEntryOut}, 201: {"model": JournalEntryOut}},
+    dependencies=[Depends(require_sandbox_journal)],
 )
 def create_sandbox_entry(body: PostEntryIn, session: Session = Depends(get_db)) -> JSONResponse:
-    """Post a balanced entry. Replaying the same key and body returns the original."""
-    if get_settings().sandbox_mode is not True:
-        raise SandboxViolation("journal posting is disabled outside sandbox mode")
+    """Local development only: 404 unless `SANDBOX_JOURNAL_ENABLED=true`.
+
+    Posts any balanced entry, including a credit to any wallet, so it never runs
+    on the public demo. Replaying the same key and body returns the original.
+    """
     result = post_entry(session, body.to_command())
     entry = session.get(JournalEntry, result.entry_id)
     if entry is None:

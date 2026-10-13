@@ -34,6 +34,8 @@ def pytest_configure(config: pytest.Config) -> None:
         chosen = _DEFAULT_TEST_URL
     os.environ["DATABASE_URL"] = chosen
     os.environ["SANDBOX_MODE"] = "true"
+    # Most tests sign many users up from one TestClient IP; test_rate_limits turns limits on.
+    os.environ["RATE_LIMITS_ENABLED"] = "false"
     # Port 9 (discard) is closed, so mock callbacks never reach a dev server on :8000.
     os.environ["PUBLIC_BASE_URL"] = "http://127.0.0.1:9"
     from xmoney.config import get_settings
@@ -73,12 +75,27 @@ def clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users, "
-                    "sandbox_inbox RESTART IDENTITY CASCADE"
+                    "sandbox_inbox, rate_limit_hits RESTART IDENTITY CASCADE"
                 )
             )
         with Session(engine) as session:
             seed_system_accounts(session)
             session.commit()
+
+
+@pytest.fixture
+def configure(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., None]]:
+    """Override settings from environment variables for one test."""
+    from xmoney.config import get_settings
+
+    def _configure(**env: str) -> None:
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+        get_settings.cache_clear()
+
+    yield _configure
+    monkeypatch.undo()
+    get_settings.cache_clear()
 
 
 @pytest.fixture

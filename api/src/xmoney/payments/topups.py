@@ -420,8 +420,9 @@ def _require_topup_amount(value: object) -> int:
     amount = require_cents(value)
     if amount % 100 != 0:
         raise InvalidAmount("M-PESA top-ups must be a whole number of shillings")
-    if amount > MAX_TOPUP_CENTS:
-        raise InvalidAmount("a top-up cannot exceed KES 250,000")
+    cap = min(MAX_TOPUP_CENTS, get_settings().topup_max_cents)
+    if amount > cap:
+        raise InvalidAmount(f"a top-up cannot exceed KES {cap // 100:,}")
     return amount
 
 
