@@ -65,4 +65,4 @@ With a tunnel, the callback usually lands within seconds and the receipt is set.
 | stays `pending`, then `expired` | the prompt was ignored, or STK Query is rate limited. A late callback still credits the wallet. |
 | result code `1032` / `1037` / `1` | cancelled on the phone / phone unreachable / insufficient funds |
 
-Afterwards, `GET /v1/accounts/{wallet}/balance` shows the credit, and `stk_callbacks` holds the raw callback. Record the date and the checkout id in the PR or release notes as evidence. Never record the credentials.
+Afterwards, `GET /v1/me/balance` (signed in) shows the credit, and `stk_callbacks` holds the raw callback. Record the date and the checkout id in the PR or release notes as evidence. Never record the credentials.

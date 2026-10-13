@@ -51,7 +51,6 @@ def main() -> int:
         )
         if verified.status_code != 200:
             return _fail("verify", verified)
-        wallet = verified.json()["wallet_account_id"]
         print(f"signed in as @{verified.json()['handle']}")
 
         started = http.post(
@@ -70,7 +69,7 @@ def main() -> int:
             topup = http.get(f"/v1/topups/{topup['id']}").json()
             print(f"  {topup['status']}")
 
-        balance = http.get(f"/v1/accounts/{wallet}/balance").json()["balance_cents"]
+        balance = http.get("/v1/me/balance").json()["balance_cents"]
         print(
             f"final: {topup['status']} result_code={topup['result_code']} "
             f"receipt={topup['mpesa_receipt_number']} wallet=KES {balance / 100:.2f}"

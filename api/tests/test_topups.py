@@ -173,7 +173,9 @@ def _later(db: Session, topup_id: UUID, seconds: int) -> datetime:
     return created.created_at + timedelta(seconds=seconds)
 
 
-def test_top_up_over_http_credits_the_wallet_once(api: TestClient, rail, sign_up) -> None:
+def test_top_up_over_http_credits_the_wallet_once(
+    api: TestClient, rail, sign_up, db: Session
+) -> None:
     state, _provider = rail
     me = sign_up("amina", "+254712345000")
     created = api.post(
@@ -194,8 +196,7 @@ def test_top_up_over_http_credits_the_wallet_once(api: TestClient, rail, sign_up
     assert done["mpesa_receipt_number"].startswith("SBOX")
     balance = api.get(f"/v1/accounts/{me['wallet_account_id']}/balance").json()
     assert balance["balance_cents"] == AMOUNT
-    float_balance = api.get(f"/v1/accounts/{MPESA_FLOAT.id}/balance").json()
-    assert float_balance["balance_cents"] == AMOUNT
+    assert get_balance(db, MPESA_FLOAT.id).balance_cents == AMOUNT
 
     replay = api.post(
         "/v1/topups", json={"amount_cents": AMOUNT}, headers={"Idempotency-Key": "k1"}
