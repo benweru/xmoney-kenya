@@ -1,5 +1,5 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
-	run run-web lint lint-api lint-web fmt
+	run run-web lint lint-api lint-web fmt pre-commit
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
 API := cd api &&
@@ -16,6 +16,7 @@ setup-api:
 	$(API) $(VENV)/python -m pip install --upgrade pip
 	$(API) $(VENV)/python -m pip install -e ".[dev]"
 	@test -f api/.env || cp api/.env.example api/.env
+	@if [ -d .git ]; then api/$(VENV)/pre-commit install; fi
 
 setup-web:
 	$(WEB) npm ci
@@ -67,10 +68,16 @@ lint: lint-api lint-web
 lint-api:
 	$(API) $(VENV)/ruff check src tests alembic
 	$(API) $(VENV)/ruff format --check src tests alembic
+	$(API) $(VENV)/mypy
 
 lint-web:
 	$(WEB) npm run lint
+	$(WEB) npm run format:check
+
+pre-commit:
+	api/$(VENV)/pre-commit run --all-files
 
 fmt:
 	$(API) $(VENV)/ruff check --fix src tests alembic
 	$(API) $(VENV)/ruff format src tests alembic
+	$(WEB) npm run format
