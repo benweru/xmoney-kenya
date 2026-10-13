@@ -42,6 +42,13 @@ data "aws_ecr_repository" "api" {
   name = "${local.name}/api"
 }
 
+data "aws_ecr_image" "latest" {
+  count = var.api_image_tag == null ? 1 : 0
+
+  repository_name = data.aws_ecr_repository.api.name
+  most_recent     = true
+}
+
 data "aws_iam_role" "deploy" {
   name = "${local.name}-github-deploy"
 }
@@ -56,7 +63,10 @@ locals {
 
   public_url = "https://${aws_cloudfront_distribution.web.domain_name}"
   api_url    = "${local.public_url}/api"
-  api_image  = "${data.aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
+  api_image = (var.api_image_tag != null
+    ? "${data.aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
+    : "${data.aws_ecr_repository.api.repository_url}@${data.aws_ecr_image.latest[0].image_digest}"
+  )
 
   rails = var.enable_sandbox_rail ? ["mock", "sandbox"] : ["mock"]
 }

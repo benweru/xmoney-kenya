@@ -1,5 +1,6 @@
-# Copy to terraform.tfvars (gitignored). `make aws-up` passes api_image_tag itself.
-# api_image_tag = "<git sha of an image already in ECR>"
+# Copy to terraform.tfvars (gitignored).
+# Unset, new task definitions use the most recently pushed image. `make aws-up TAG=<sha>` pins one.
+# api_image_tag = "<git sha>"
 
 # Offer Safaricom's Daraja sandbox next to the mock. Fill the foundation's
 # xmoney-demo/daraja-sandbox secret first (docs/runbooks/aws-first-deploy.md).

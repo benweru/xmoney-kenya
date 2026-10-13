@@ -5,11 +5,12 @@ variable "region" {
 }
 
 variable "api_image_tag" {
-  description = "Tag of the API image in ECR for the first apply. Later deploys come from GitHub Actions, and Terraform ignores the running revision."
+  description = "API image tag in ECR for new task definitions. Null uses the most recently pushed image. Deploys from GitHub Actions roll the service themselves; Terraform ignores the running revision."
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$", var.api_image_tag))
+    condition     = var.api_image_tag == null || can(regex("^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$", var.api_image_tag))
     error_message = "api_image_tag must be a valid image tag, such as a git SHA."
   }
 }
