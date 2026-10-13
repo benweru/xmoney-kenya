@@ -119,7 +119,11 @@ Customer flows never overdraw a wallet: a send is refused if the sender's balanc
 
 The phone must be E.164 for a Kenyan mobile: `+254` then `7` or `1` and eight more digits. Spaces and dashes are ignored. A local `07…` number is rejected so the stored form is always E.164.
 
-`GET /v1/handles/{handle}` resolves a handle to its wallet. It does not return the phone number.
+`GET /v1/handles/{handle}` confirms that a handle is registered and returns only `{"handle": ...}`: no phone number, user id, or wallet id. Sends address people by handle, so nobody needs another person's internal ids.
+
+## Balances
+
+`GET /v1/me/balance` returns the signed-in user's wallet balance. `GET /v1/accounts/{id}/balance` also works, but only on your own wallet. Another user's wallet, a system account, and an id that does not exist all return the same `404 account_not_found`, so probing ids reveals nothing. Both routes need a session.
 
 ## Sign-in
 
@@ -220,6 +224,7 @@ curl -s -c cookies.txt -X POST localhost:8000/v1/auth/verify \
   -H 'content-type: application/json' \
   -d '{"challenge_id":"<challenge_id>","code":"<code>"}'
 curl -s -b cookies.txt localhost:8000/v1/me
+curl -s -b cookies.txt localhost:8000/v1/me/balance
 
 # Top up through the mock (a phone ending in 000 succeeds), then send to another handle.
 curl -s -b cookies.txt -X POST localhost:8000/v1/topups \
