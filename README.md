@@ -109,7 +109,7 @@ PostgreSQL enforces the rules the application also checks:
 - Postings can only be added in the transaction that created their journal entry, so a committed entry cannot gain new lines later.
 - Handles are unique case-insensitively, phones are unique, and each user has one wallet.
 
-Week 1 does **not** refuse an overdraft. A wallet can go negative. Spend limits arrive with peer transfers in M1. The books still have to balance: total debits equal total credits, and the test suite checks that after every test.
+Customer flows never overdraw a wallet: a send is refused if the sender's balance, read under a lock, is too low (see [Sends](#sends)). The ledger itself does not forbid a negative account, so the sandbox journal route below can still push a wallet negative for demonstrations. The books always balance: total debits equal total credits, and the test suite checks that after every test.
 
 `POST /v1/sandbox/journal-entries` exists so the ledger can be demonstrated. It is not the customer top-up API. Top-ups post from the STK callback, not from this route.
 
@@ -141,6 +141,18 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 - Postgres enforces the allowed transitions, so `succeeded` can never go back to `pending`.
 
 `make smoke-topup PHONE=+254712345000` runs one top-up through a running API. The [Daraja sandbox runbook](docs/runbooks/daraja-sandbox-top-up.md) does the same against Safaricom's sandbox with your own credentials.
+
+## Sends
+
+`POST /v1/transfers` (signed in, with an `Idempotency-Key` header) sends `amount_cents` to an @handle, with an optional `note` of up to 140 characters:
+
+```json
+{"to": "@baraka", "amount_cents": 25000, "note": "Lunch"}
+```
+
+- **No overdrafts.** Both wallets are locked (`SELECT … FOR UPDATE`) in account-id order, the order every ledger post uses. Then the sender's balance is read, and the journal entry and the `transfers` row are written in that same transaction. Concurrent sends from one wallet check the balance one at a time, and `@a → @b` racing `@b → @a` cannot deadlock. A refused send is `422 insufficient_funds` and writes nothing.
+- **Idempotent.** Replaying a key returns the original transfer (HTTP 200). The same key with a different recipient, amount, or note is a 409. A key that was refused for insufficient funds can be retried after a top-up.
+- Sending to yourself is refused, and so is an unknown handle (404). Transfers cannot be updated or deleted.
 
 ## M-PESA simulator
 
@@ -209,6 +221,14 @@ curl -s -c cookies.txt -X POST localhost:8000/v1/auth/verify \
   -d '{"challenge_id":"<challenge_id>","code":"<code>"}'
 curl -s -b cookies.txt localhost:8000/v1/me
 
+# Top up through the mock (a phone ending in 000 succeeds), then send to another handle.
+curl -s -b cookies.txt -X POST localhost:8000/v1/topups \
+  -H 'content-type: application/json' -H 'Idempotency-Key: topup-1' \
+  -d '{"amount_cents":50000}'
+curl -s -b cookies.txt -X POST localhost:8000/v1/transfers \
+  -H 'content-type: application/json' -H 'Idempotency-Key: send-1' \
+  -d '{"to":"@baraka","amount_cents":25000,"note":"Lunch"}'
+
 curl -s -u sandbox:sandbox \
   'localhost:8000/sandbox/daraja/oauth/v1/generate?grant_type=client_credentials'
 ```
@@ -237,6 +257,7 @@ Coverage that matters for a ledger:
 - Two registrations of the same handle cannot both win.
 - Sign-in: PINs are Argon2id hashes, wrong PINs lock the account (parallel guesses are each counted), and codes expire, die after 5 guesses, and work once. Signed-out session tokens stop working.
 - The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback.
+- Sends: 100 concurrent sends of KES 1 from a wallet holding KES 50 succeed exactly 50 times and leave it at zero. 40 concurrent sends in opposite directions between two wallets all complete without a deadlock. 10 concurrent replays of one key send once.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a callback that beats the push response is applied; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, and forged (wrong token) callbacks move no money; Postgres rejects illegal transitions.
 
 ## Roadmap
