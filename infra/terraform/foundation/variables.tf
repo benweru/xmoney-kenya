@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "alert_email" {
-  description = "Where AWS Budgets sends cost alerts. AWS emails it once to confirm."
+  description = "Where AWS Budgets sends cost alerts."
   type        = string
 
   validation {

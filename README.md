@@ -34,11 +34,13 @@ Milestone M4 of the roadmap is a write-up of that gap. It is not a shortcut thro
 ```text
 api/        FastAPI backend: ledger, @handles, payments seam, Daraja mock, Alembic, pytest
 web/        Next.js + TypeScript wallet PWA, Playwright e2e tests
+infra/      Terraform for the AWS demo (bootstrap, foundation, app) and its scripts
 docs/adr/   architecture decision records
+docs/runbooks/  step-by-step operations: Daraja sandbox, first AWS deploy, AWS costs
 docker/     Postgres init scripts for docker compose
 ```
 
-Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md), [005 STK top-ups](docs/adr/005-stk-topup-state-machine.md).
+Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md), [005 STK top-ups](docs/adr/005-stk-topup-state-machine.md), [006 open-demo protections](docs/adr/006-open-demo-protections.md), [007 AWS IAM](docs/adr/007-aws-iam-design.md), [008 no NAT gateway](docs/adr/008-no-nat-gateway.md).
 
 ## Architecture
 
@@ -295,12 +297,15 @@ make pre-commit  # every pre-commit hook against every file
 
 `make setup` installs the [pre-commit](https://pre-commit.com/) hooks in `.pre-commit-config.yaml`: ruff (lint and format) and strict mypy for `api/`, ESLint and Prettier for `web/`, plus whitespace and YAML/TOML/JSON checks. Branch naming and the PR flow are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs four jobs:
+Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs five jobs:
 
 - `api`: ruff, strict mypy, a check that `openapi.json` is current, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16.
 - `web`: ESLint, Prettier, a check that the typed client matches `openapi.json`, typecheck, and build.
 - `compose`: builds the demo stack and smoke-tests both apps.
 - `e2e`: Playwright on a mobile viewport against the compose stack on the Daraja mock (see [`web/README.md`](web/README.md#end-to-end-tests)).
+- `terraform`: `fmt -check`, `validate` for all three stacks without a backend, `tflint` with the AWS ruleset, and `shellcheck` on the AWS scripts. It uses no AWS credentials.
+
+A separate workflow, **Deploy demo**, ships `main` to AWS over OIDC once the account exists (see [The AWS demo](#the-aws-demo)).
 
 Coverage that matters for a ledger:
 
@@ -313,7 +318,55 @@ Coverage that matters for a ledger:
 - The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback.
 - Sends: 100 concurrent sends of KES 1 from a wallet holding KES 50 succeed exactly 50 times and leave it at zero. 40 concurrent sends in opposite directions between two wallets all complete without a deadlock. 10 concurrent replays of one key send once.
 - Open demo: the journal route is 404 by default and cannot be enabled behind `https`; registration, sign-in, and top-ups are refused past their limits; failed attempts count; forged `X-Forwarded-For` addresses do not get a fresh bucket.
+- Rails: each top-up is queried on the rail that took it; a rail that is no longer offered still expires; the sandbox rail refuses placeholder keys, and on a public URL it refuses to start without a phone allowlist.
+- Demo seed and reset: the seed goes through the real top-up and transfer code, runs once, and leaves no PIN; reset removes visitors and restores the seed.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a callback that beats the push response is applied; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, and forged (wrong token) callbacks move no money; Postgres rejects illegal transitions.
+
+## The AWS demo
+
+The public demo runs on AWS, provisioned with Terraform in [`infra/terraform/`](infra/terraform/). **It is not deployed yet.** The configuration validates and lints in CI and is ready to plan; [the first-deploy runbook](docs/runbooks/aws-first-deploy.md) goes from a new AWS account to a live URL.
+
+```mermaid
+flowchart LR
+  phone[Phone browser] -->|HTTPS| cf[CloudFront]
+  daraja[Daraja sandbox] -->|STK callback, HTTPS| cf
+  cf -->|"/*"| s3[("S3: static wallet")]
+  cf -->|"/api/*, secret header"| alb[ALB]
+  subgraph vpc["VPC, 2 AZs, no NAT gateway"]
+    subgraph public["Public subnets"]
+      alb --> api["ECS Fargate: API + Daraja mock"]
+      jobs["Fargate Spot: resolve-topups, demo-reset"]
+    end
+    subgraph private["Private subnets"]
+      rds[(RDS Postgres 16)]
+    end
+    api --> rds
+    jobs --> rds
+  end
+  sched[EventBridge Scheduler] --> jobs
+  api -->|STK Push / Query| daraja
+  gha[GitHub Actions] -->|OIDC| deploy[Deploy role]
+  deploy --> ecr[(ECR)]
+  deploy --> api
+  deploy --> s3
+```
+
+- **Two stacks.** `foundation` is always on and near-free: Budgets alerts at $5, $10, and $20 plus a forecast, ECR, the GitHub OIDC deploy role, and the Daraja secret. `app` can be destroyed: VPC, RDS, ECS, ALB, S3, CloudFront, and schedules. A one-time `bootstrap` stack makes the versioned, encrypted state bucket, and both stacks use S3 native locking.
+- **One origin.** CloudFront serves the wallet from a private S3 bucket and sends `/api/*` to the ALB, so cookies are same-origin and Daraja gets an HTTPS callback URL without a domain. The ALB accepts only CloudFront's IP ranges plus a secret header ([ADR 008](docs/adr/008-no-nat-gateway.md)).
+- **Least privilege** ([ADR 007](docs/adr/007-aws-iam-design.md)). GitHub deploys through OIDC from the `demo` environment only, and its role can ship images and files but not change infrastructure. Each kind of task reads only its own secrets. The database password is write-only, so it is never in Terraform state.
+- **Open-demo settings**:
+  - 2 trusted proxy hops for the rate limits, and secure cookies.
+  - A KES 1,000 top-up cap, and the mock's control route switched off.
+  - A nightly reset to the seed (`xmoney-demo reset`) at 03:00 Nairobi time.
+  - STK Query for silent top-ups every 10 minutes.
+- **Mock or Daraja sandbox.** The mock is always on. `enable_sandbox_rail = true` adds the real Daraja sandbox, limited to the owner's test phones, because its prompts reach real handsets.
+- **Cost.** About $1.90 a day awake, $1 asleep, and cents when down. `make aws-sleep`, `make aws-wake`, `make aws-down`, and `make aws-up` are explained in [aws-costs.md](docs/runbooks/aws-costs.md).
+
+```bash
+make tf-check                  # what CI runs; no AWS account needed
+make aws-plan                  # needs the account (runbook steps 1-5)
+make demo-seed                 # the demo wallets, locally
+```
 
 ## Roadmap
 
