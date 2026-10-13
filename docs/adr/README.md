@@ -10,5 +10,7 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [004](004-pin-otp-sign-in.md) | Sign-in: hashed PIN, a one-time code, and server-side sessions | Accepted |
 | [005](005-stk-topup-state-machine.md) | STK top-ups: a state machine with exactly-once callbacks | Accepted |
 | [006](006-open-demo-protections.md) | Open demo protections: no minting route, and rate limits counted in Postgres | Accepted |
+| [007](007-aws-iam-design.md) | AWS IAM: OIDC deploys, one role per job, and secrets per task | Accepted |
+| [008](008-no-nat-gateway.md) | AWS network: no NAT gateway, tasks in public subnets, CloudFront in front | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.
