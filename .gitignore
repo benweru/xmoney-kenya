@@ -13,3 +13,5 @@ build/
 .idea/
 .vscode/
 *.log
+node_modules/
+.next/
