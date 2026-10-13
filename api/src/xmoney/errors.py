@@ -126,6 +126,11 @@ class InvalidTransfer(XMoneyError):
     http_status = 422
 
 
+class InvalidCursor(XMoneyError):
+    code = "invalid_cursor"
+    http_status = 422
+
+
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403
