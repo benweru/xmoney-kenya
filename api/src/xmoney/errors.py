@@ -116,6 +116,16 @@ class TopupNotFound(XMoneyError):
     http_status = 404
 
 
+class InsufficientFunds(XMoneyError):
+    code = "insufficient_funds"
+    http_status = 422
+
+
+class InvalidTransfer(XMoneyError):
+    code = "invalid_transfer"
+    http_status = 422
+
+
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403
