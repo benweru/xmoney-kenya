@@ -14,11 +14,18 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from xmoney.errors import CallbackParseError, IdempotencyConflict, InvalidAmount, SandboxViolation
+from xmoney.errors import (
+    CallbackParseError,
+    IdempotencyConflict,
+    InvalidAmount,
+    ProviderError,
+    SandboxViolation,
+)
 from xmoney.ledger.models import Posting
 from xmoney.main import app
 from xmoney.payments.daraja import DarajaHttpProvider, daraja_password, parse_stk_callback
 from xmoney.payments.provider import Outcome, StkPushRequest
+from xmoney.sandbox import assert_sandbox_daraja_host
 
 
 class _QuietHandler(BaseHTTPRequestHandler):
@@ -286,3 +293,63 @@ def test_callback_parser_rejects_garbage_and_unknown_codes() -> None:
         }
     )
     assert cents.amount_cents == 1_050
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://api.safaricom.co.ke./",
+        "https://API.Safaricom.co.ke:443/",
+        "https://safaricom.co.ke/",
+        "https://other.safaricom.co.ke/",
+    ],
+)
+def test_adapter_refuses_every_non_sandbox_safaricom_host(base_url: str) -> None:
+    with pytest.raises(SandboxViolation):
+        assert_sandbox_daraja_host(base_url)
+
+
+def test_adapter_treats_non_zero_response_code_as_rejected() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth/v1/generate"):
+            return httpx.Response(200, json={"access_token": "t", "expires_in": "3599"})
+        return httpx.Response(
+            200,
+            json={
+                "MerchantRequestID": "m",
+                "CheckoutRequestID": "c",
+                "ResponseCode": "1",
+                "ResponseDescription": "Rejected",
+                "CustomerMessage": "Rejected",
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    daraja = DarajaHttpProvider(
+        base_url="http://xmoney.test/sandbox/daraja",
+        consumer_key="sandbox",
+        consumer_secret="sandbox",
+        shortcode="174379",
+        passkey="sandbox-passkey",
+        client=client,
+    )
+    with pytest.raises(ProviderError, match="ResponseCode 1"):
+        _push(daraja, "+254700000000", "http://127.0.0.1/cb", key="rejected")
+    client.close()
+
+
+@pytest.mark.parametrize("amount", ["NaN", "Infinity", -10, 0])
+def test_callback_parser_rejects_non_finite_or_non_positive_amounts(amount: object) -> None:
+    payload = {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "m",
+                "CheckoutRequestID": "c",
+                "ResultCode": 0,
+                "ResultDesc": "ok",
+                "CallbackMetadata": {"Item": [{"Name": "Amount", "Value": amount}]},
+            }
+        }
+    }
+    with pytest.raises(CallbackParseError):
+        parse_stk_callback(payload)

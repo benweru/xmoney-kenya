@@ -17,7 +17,6 @@ from xmoney.errors import (
     InvalidAmount,
     InvalidPaymentRequest,
     ProviderError,
-    SandboxViolation,
 )
 from xmoney.identity.validators import normalize_phone
 from xmoney.ledger.money import require_idempotency_key
@@ -28,8 +27,7 @@ from xmoney.payments.provider import (
     StkPushAccepted,
     StkPushRequest,
 )
-
-PRODUCTION_DARAJA_HOSTS = frozenset({"api.safaricom.co.ke"})
+from xmoney.sandbox import assert_sandbox_daraja_host
 
 RESULT_CODES: dict[Outcome, tuple[int, str]] = {
     Outcome.SUCCESS: (0, "The service request is processed successfully."),
@@ -41,18 +39,6 @@ _OUTCOME_BY_CODE = {code: outcome for outcome, (code, _desc) in RESULT_CODES.ite
 
 # Daraja documents a per-transaction cap. The sandbox mock enforces the same bound.
 _MAX_STK_SHILLINGS = 250_000
-
-
-def assert_sandbox_daraja_host(base_url: str) -> None:
-    parsed = urlparse(base_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise SandboxViolation("Daraja base URL must be an http(s) URL")
-    host = parsed.hostname.lower()
-    if host in PRODUCTION_DARAJA_HOSTS:
-        raise SandboxViolation(
-            "refusing production Daraja host api.safaricom.co.ke; "
-            "this build only talks to a sandbox or the local mock"
-        )
 
 
 def daraja_password(shortcode: str, passkey: str, timestamp: str) -> str:
@@ -182,7 +168,7 @@ class DarajaHttpProvider:
                 status_code=response.status_code,
             )
         try:
-            return StkPushAccepted(
+            accepted = StkPushAccepted(
                 merchant_request_id=str(body["MerchantRequestID"]),
                 checkout_request_id=str(body["CheckoutRequestID"]),
                 response_code=str(body["ResponseCode"]),
@@ -191,6 +177,12 @@ class DarajaHttpProvider:
             )
         except KeyError as exc:
             raise ProviderError("STK response was missing CheckoutRequestID") from exc
+        if accepted.response_code != "0":
+            raise ProviderError(
+                f"STK push was not accepted (ResponseCode {accepted.response_code}): "
+                f"{accepted.response_description}"
+            )
+        return accepted
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
@@ -254,6 +246,8 @@ def _shillings_to_cents(value: object) -> int:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise CallbackParseError("callback amount is not numeric") from exc
+    if not amount.is_finite() or amount <= 0:
+        raise CallbackParseError("callback amount must be a positive number")
     return int((amount * 100).to_integral_value(rounding=ROUND_HALF_UP))
 
 

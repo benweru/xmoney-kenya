@@ -7,6 +7,9 @@ from functools import lru_cache
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from xmoney.errors import SandboxViolation
+from xmoney.sandbox import assert_sandbox_daraja_host
+
 
 class Settings(BaseSettings):
     """Process configuration loaded from the environment and an optional `.env` file."""
@@ -28,6 +31,10 @@ class Settings(BaseSettings):
                 "Refusing to start: X Money for Kenya is a sandbox prototype and "
                 "cannot be configured to move real money."
             )
+        try:
+            assert_sandbox_daraja_host(self.daraja_base_url)
+        except SandboxViolation as exc:
+            raise ValueError(f"Refusing to start: {exc}") from exc
         return self
 
 
