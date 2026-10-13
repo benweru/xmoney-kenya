@@ -1,0 +1,1789 @@
+{
+  "components": {
+    "schemas": {
+      "BalanceOut": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "balance_cents": {
+            "title": "Balance Cents",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "credit_cents": {
+            "title": "Credit Cents",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "debit_cents": {
+            "title": "Debit Cents",
+            "type": "integer"
+          },
+          "normal_side": {
+            "title": "Normal Side",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "code",
+          "currency",
+          "normal_side",
+          "debit_cents",
+          "credit_cents",
+          "balance_cents"
+        ],
+        "title": "BalanceOut",
+        "type": "object"
+      },
+      "BehaviorIn": {
+        "additionalProperties": false,
+        "properties": {
+          "delay_ms": {
+            "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Delay Ms",
+            "type": "integer"
+          },
+          "drop_callback": {
+            "default": false,
+            "title": "Drop Callback",
+            "type": "boolean"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/Outcome",
+            "default": "success"
+          }
+        },
+        "title": "BehaviorIn",
+        "type": "object"
+      },
+      "ChallengeOut": {
+        "properties": {
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "delivery": {
+            "default": "sandbox_inbox",
+            "title": "Delivery",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "expires_at"
+        ],
+        "title": "ChallengeOut",
+        "type": "object"
+      },
+      "Direction": {
+        "enum": [
+          "debit",
+          "credit"
+        ],
+        "title": "Direction",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HandleOut": {
+        "description": "Public. Enough to confirm a recipient exists, nothing that identifies a wallet.",
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "title": "HandleOut",
+        "type": "object"
+      },
+      "HistoryItemOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "mpesa_receipt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Receipt"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amount_cents",
+          "counterparty",
+          "note",
+          "mpesa_receipt",
+          "created_at"
+        ],
+        "title": "HistoryItemOut",
+        "type": "object"
+      },
+      "HistoryPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "HistoryPageOut",
+        "type": "object"
+      },
+      "InboxMessageOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "created_at"
+        ],
+        "title": "InboxMessageOut",
+        "type": "object"
+      },
+      "JournalEntryOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/PostingOut"
+            },
+            "title": "Postings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "idempotency_key",
+          "description",
+          "external_ref",
+          "idempotent_replay",
+          "postings"
+        ],
+        "title": "JournalEntryOut",
+        "type": "object"
+      },
+      "MeOut": {
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "wallet_account_id": {
+            "format": "uuid",
+            "title": "Wallet Account Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "handle",
+          "phone",
+          "wallet_account_id"
+        ],
+        "title": "MeOut",
+        "type": "object"
+      },
+      "Outcome": {
+        "enum": [
+          "success",
+          "cancelled",
+          "timeout",
+          "insufficient_funds"
+        ],
+        "title": "Outcome",
+        "type": "string"
+      },
+      "PostEntryIn": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "examples": [
+              "Sandbox float to wallet"
+            ],
+            "title": "Description",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "idempotency_key": {
+            "examples": [
+              "demo-topup-1"
+            ],
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/PostingIn"
+            },
+            "title": "Postings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "description",
+          "postings"
+        ],
+        "title": "PostEntryIn",
+        "type": "object"
+      },
+      "PostingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          }
+        },
+        "required": [
+          "account_id",
+          "direction",
+          "amount_cents"
+        ],
+        "title": "PostingIn",
+        "type": "object"
+      },
+      "PostingOut": {
+        "properties": {
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "line_no": {
+            "title": "Line No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line_no",
+          "account_id",
+          "direction",
+          "amount_cents"
+        ],
+        "title": "PostingOut",
+        "type": "object"
+      },
+      "RegisterIn": {
+        "additionalProperties": false,
+        "properties": {
+          "handle": {
+            "examples": [
+              "@amina"
+            ],
+            "title": "Handle",
+            "type": "string"
+          },
+          "phone": {
+            "examples": [
+              "+254712345678"
+            ],
+            "title": "Phone",
+            "type": "string"
+          },
+          "pin": {
+            "description": "4-6 digits; stored only as an Argon2id hash",
+            "examples": [
+              "2580"
+            ],
+            "title": "Pin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "phone",
+          "pin"
+        ],
+        "title": "RegisterIn",
+        "type": "object"
+      },
+      "SignInIn": {
+        "additionalProperties": false,
+        "properties": {
+          "phone": {
+            "examples": [
+              "+254712345678"
+            ],
+            "title": "Phone",
+            "type": "string"
+          },
+          "pin": {
+            "examples": [
+              "2580"
+            ],
+            "title": "Pin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone",
+          "pin"
+        ],
+        "title": "SignInIn",
+        "type": "object"
+      },
+      "StkPushBody": {
+        "properties": {
+          "AccountReference": {
+            "title": "Accountreference",
+            "type": "string"
+          },
+          "Amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "BusinessShortCode": {
+            "title": "Businessshortcode",
+            "type": "string"
+          },
+          "CallBackURL": {
+            "title": "Callbackurl",
+            "type": "string"
+          },
+          "PartyA": {
+            "title": "Partya",
+            "type": "string"
+          },
+          "PartyB": {
+            "title": "Partyb",
+            "type": "string"
+          },
+          "Password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "PhoneNumber": {
+            "title": "Phonenumber",
+            "type": "string"
+          },
+          "Timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "TransactionDesc": {
+            "title": "Transactiondesc",
+            "type": "string"
+          },
+          "TransactionType": {
+            "title": "Transactiontype",
+            "type": "string"
+          }
+        },
+        "required": [
+          "BusinessShortCode",
+          "Password",
+          "Timestamp",
+          "TransactionType",
+          "Amount",
+          "PartyA",
+          "PartyB",
+          "PhoneNumber",
+          "CallBackURL",
+          "AccountReference",
+          "TransactionDesc"
+        ],
+        "title": "StkPushBody",
+        "type": "object"
+      },
+      "StkQueryBody": {
+        "properties": {
+          "BusinessShortCode": {
+            "title": "Businessshortcode",
+            "type": "string"
+          },
+          "CheckoutRequestID": {
+            "title": "Checkoutrequestid",
+            "type": "string"
+          },
+          "Password": {
+            "title": "Password",
+            "type": "string"
+          },
+          "Timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "BusinessShortCode",
+          "Password",
+          "Timestamp",
+          "CheckoutRequestID"
+        ],
+        "title": "StkQueryBody",
+        "type": "object"
+      },
+      "TopupIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_cents": {
+            "examples": [
+              50000
+            ],
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The M-PESA line to prompt. Defaults to the signed-in user's phone.",
+            "examples": [
+              "+254708374149"
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "amount_cents"
+        ],
+        "title": "TopupIn",
+        "type": "object"
+      },
+      "TopupOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "checkout_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Request Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "mpesa_receipt_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Receipt Number"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "result_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Code"
+          },
+          "result_desc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Desc"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amount_cents",
+          "phone",
+          "checkout_request_id",
+          "mpesa_receipt_number",
+          "result_code",
+          "result_desc",
+          "created_at",
+          "resolved_at",
+          "idempotent_replay"
+        ],
+        "title": "TopupOut",
+        "type": "object"
+      },
+      "TransferIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_cents": {
+            "examples": [
+              25000
+            ],
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "examples": [
+              "Lunch"
+            ],
+            "title": "Note"
+          },
+          "to": {
+            "examples": [
+              "@baraka"
+            ],
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "amount_cents"
+        ],
+        "title": "TransferIn",
+        "type": "object"
+      },
+      "TransferOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recipient": {
+            "title": "Recipient",
+            "type": "string"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sender",
+          "recipient",
+          "amount_cents",
+          "note",
+          "created_at",
+          "idempotent_replay"
+        ],
+        "title": "TransferOut",
+        "type": "object"
+      },
+      "UserOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "wallet_account_id": {
+            "format": "uuid",
+            "title": "Wallet Account Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "handle",
+          "phone",
+          "wallet_account_id",
+          "created_at"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VerifyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
+            "type": "string"
+          },
+          "code": {
+            "examples": [
+              "482913"
+            ],
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "code"
+        ],
+        "title": "VerifyIn",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Sandbox-only prototype of a pay-by-@handle wallet for Kenya.\n\nThis process refuses to run unless sandbox mode is on. It is not a Central Bank of Kenya licensed payment service, it is not affiliated with X Corp., and it cannot move real money.",
+    "summary": "Sandbox-only pay-by-@handle wallet.",
+    "title": "X Money for Kenya",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Root  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/sandbox/daraja/__control/behavior": {
+      "put": {
+        "operationId": "set_behavior_sandbox_daraja___control_behavior_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BehaviorIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Behavior"
+      }
+    },
+    "/sandbox/daraja/__control/health": {
+      "get": {
+        "operationId": "control_health_sandbox_daraja___control_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Control Health Sandbox Daraja   Control Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Control Health"
+      }
+    },
+    "/sandbox/daraja/mpesa/stkpush/v1/processrequest": {
+      "post": {
+        "operationId": "stk_push_sandbox_daraja_mpesa_stkpush_v1_processrequest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StkPushBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stk Push"
+      }
+    },
+    "/sandbox/daraja/mpesa/stkpushquery/v1/query": {
+      "post": {
+        "operationId": "stk_query_sandbox_daraja_mpesa_stkpushquery_v1_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StkQueryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stk Query"
+      }
+    },
+    "/sandbox/daraja/oauth/v1/generate": {
+      "get": {
+        "operationId": "oauth_sandbox_daraja_oauth_v1_generate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "grant_type",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Grant Type",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oauth"
+      }
+    },
+    "/v1/accounts/{account_id}/balance": {
+      "get": {
+        "description": "Only the account's owner may read it. Anything else is a 404, so ids reveal nothing.",
+        "operationId": "read_balance_v1_accounts__account_id__balance_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Account Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Balance",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/v1/auth/sign-in": {
+      "post": {
+        "description": "Check phone and PIN. On success a one-time code goes to the sandbox inbox.",
+        "operationId": "sign_in_v1_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sign In",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/sign-out": {
+      "post": {
+        "operationId": "sign_out_route_v1_auth_sign_out_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sign Out Route",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/auth/verify": {
+      "post": {
+        "description": "Exchange the one-time code for an httpOnly session cookie.",
+        "operationId": "verify_v1_auth_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/handles/{handle}": {
+      "get": {
+        "operationId": "get_handle_v1_handles__handle__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Handle",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "me_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/v1/me/balance": {
+      "get": {
+        "operationId": "read_my_balance_v1_me_balance_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read My Balance",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/v1/me/transactions": {
+      "get": {
+        "description": "Newest first. Pass `next_cursor` back as `cursor` for the next page; null means done.\n\n`amount_cents` is signed: positive into the wallet, negative out of it.",
+        "operationId": "list_my_transactions_v1_me_transactions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List My Transactions",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/v1/payments/stk/callback/{token}": {
+      "post": {
+        "description": "Daraja's result callback. Duplicates and unknown ids are acknowledged and logged.",
+        "operationId": "stk_callback_v1_payments_stk_callback__token__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Stk Callback V1 Payments Stk Callback  Token  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stk Callback",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/sandbox/inbox": {
+      "get": {
+        "description": "Newest first. Anyone can read any phone's inbox, which is only acceptable in a sandbox.",
+        "operationId": "read_inbox_v1_sandbox_inbox_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "phone",
+            "required": true,
+            "schema": {
+              "title": "Phone",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InboxMessageOut"
+                  },
+                  "title": "Response Read Inbox V1 Sandbox Inbox Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Inbox",
+        "tags": [
+          "sandbox"
+        ]
+      }
+    },
+    "/v1/sandbox/journal-entries": {
+      "post": {
+        "description": "Local development only: 404 unless `SANDBOX_JOURNAL_ENABLED=true`.\n\nPosts any balanced entry, including a credit to any wallet, so it never runs\non the public demo. Replaying the same key and body returns the original.",
+        "operationId": "create_sandbox_entry_v1_sandbox_journal_entries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostEntryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalEntryOut"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Sandbox Entry",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/v1/topups": {
+      "post": {
+        "description": "Send an STK Push to the phone. Poll GET /v1/topups/{id} for the result.",
+        "operationId": "create_topup_v1_topups_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopupOut"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Topup",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/topups/{topup_id}": {
+      "get": {
+        "description": "Current state. A top-up with no callback yet is checked with STK Query first.",
+        "operationId": "read_topup_v1_topups__topup_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "topup_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Topup Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopupOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Topup",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/transfers": {
+      "post": {
+        "description": "Move money from the signed-in wallet to an @handle. Refused if it would overdraw.",
+        "operationId": "create_transfer_v1_transfers_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferOut"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Transfer",
+        "tags": [
+          "transfers"
+        ]
+      }
+    },
+    "/v1/users": {
+      "post": {
+        "operationId": "register_v1_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register",
+        "tags": [
+          "identity"
+        ]
+      }
+    }
+  }
+}
