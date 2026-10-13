@@ -9,9 +9,10 @@ src/xmoney/ledger/      accounts, journal, postings, balances
 src/xmoney/identity/    handles, E.164 phones, wallet creation
 src/xmoney/auth/        PIN + one-time code sign-in, sessions
 src/xmoney/inbox/       sandbox inbox (stands in for SMS)
-src/xmoney/payments/    PaymentsProvider, Daraja client, local mock
+src/xmoney/payments/    STK top-ups, PaymentsProvider, Daraja client, local mock
 alembic/                schema, triggers, and the seeded chart of accounts
-tests/                  ledger, concurrency, handles, auth, API, mock
+scripts/                topup_smoke.py, for the mock or the Daraja sandbox
+tests/                  ledger, concurrency, handles, auth, top-ups, API, mock
 ```
 
 Run commands from the repository root with `make` (`make setup`, `make test`, `make run`), or from this directory with the virtualenv in `api/.venv`.

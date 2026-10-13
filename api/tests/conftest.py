@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 import warnings
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
 from alembic import command
@@ -32,6 +34,8 @@ def pytest_configure(config: pytest.Config) -> None:
         chosen = _DEFAULT_TEST_URL
     os.environ["DATABASE_URL"] = chosen
     os.environ["SANDBOX_MODE"] = "true"
+    # Port 9 (discard) is closed, so mock callbacks never reach a dev server on :8000.
+    os.environ["PUBLIC_BASE_URL"] = "http://127.0.0.1:9"
     from xmoney.config import get_settings
 
     get_settings.cache_clear()
@@ -107,3 +111,32 @@ def client(engine: Engine) -> Iterator[TestClient]:
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+_CODE_RE = re.compile(r"code is (\d{6})")
+
+
+@pytest.fixture
+def sign_up(client: TestClient) -> Callable[..., dict[str, Any]]:
+    """Register a user with a PIN and sign them in on `http` (default: `client`)."""
+
+    def _sign_up(
+        handle: str, phone: str, *, pin: str = "2580", http: TestClient | None = None
+    ) -> dict[str, Any]:
+        http = http or client
+        created = http.post("/v1/users", json={"handle": handle, "phone": phone, "pin": pin})
+        assert created.status_code == 201, created.text
+        challenge = http.post("/v1/auth/sign-in", json={"phone": phone, "pin": pin})
+        assert challenge.status_code == 200, challenge.text
+        inbox = http.get("/v1/sandbox/inbox", params={"phone": phone}).json()
+        match = _CODE_RE.search(inbox[0]["body"])
+        assert match is not None
+        verified = http.post(
+            "/v1/auth/verify",
+            json={"challenge_id": challenge.json()["challenge_id"], "code": match.group(1)},
+        )
+        assert verified.status_code == 200, verified.text
+        body: dict[str, Any] = verified.json()
+        return body
+
+    return _sign_up

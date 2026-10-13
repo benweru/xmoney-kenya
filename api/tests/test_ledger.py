@@ -19,7 +19,7 @@ from xmoney.errors import (
 from xmoney.identity.service import register_user
 from xmoney.ledger.models import JournalEntry, LedgerAccount, Posting
 from xmoney.ledger.money import Direction, PostCommand, PostingLine
-from xmoney.ledger.service import get_balance, post_entry
+from xmoney.ledger.service import get_balance, post_entry, post_entry_in_transaction
 from xmoney.ledger.system import FEES, MPESA_FLOAT, SUSPENSE, SYSTEM_ACCOUNTS
 
 
@@ -399,3 +399,21 @@ def _insert_pair(conn, entry_id, *, debit: int, credit: int, first_line: int = 1
             "credit": credit,
         },
     )
+
+
+def test_in_transaction_post_commits_and_rolls_back_with_the_caller(db: Session) -> None:
+    user = register_user(db, handle="amina", phone="+254712345678")
+    db.begin()
+    post_entry_in_transaction(db, _command(user.wallet_account_id, key="caller-1"))
+    db.rollback()
+    assert _count(db, JournalEntry) == 0
+    assert get_balance(db, user.wallet_account_id).balance_cents == 0
+    db.rollback()
+
+    with db.begin():
+        first = post_entry_in_transaction(db, _command(user.wallet_account_id, key="caller-2"))
+        again = post_entry_in_transaction(db, _command(user.wallet_account_id, key="caller-2"))
+    assert first.created is True
+    assert again.created is False
+    assert again.entry_id == first.entry_id
+    assert get_balance(db, user.wallet_account_id).balance_cents == 5_000

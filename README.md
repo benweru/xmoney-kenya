@@ -27,7 +27,7 @@ docs/adr/   architecture decision records
 docker/     Postgres init scripts for docker compose
 ```
 
-Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md).
+Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md), [005 STK top-ups](docs/adr/005-stk-topup-state-machine.md).
 
 ## Architecture
 
@@ -59,18 +59,22 @@ flowchart TB
 
 Solid arrows are week 1. Dashed arrows are the same `PaymentsProvider` seam, not wired yet.
 
-The M1 top-up, which this repo does **not** post into the ledger yet:
+An STK top-up ([ADR 005](docs/adr/005-stk-topup-state-machine.md)):
 
 ```mermaid
 sequenceDiagram
   participant App
   participant API
-  participant Mock as Daraja mock
-  App->>API: Top up (M1)
-  API->>Mock: STK Push
-  Mock-->>API: Accepted
-  Mock->>API: Callback, or silence if it was dropped
-  API->>API: Idempotent ledger post
+  participant Rail as Daraja mock or sandbox
+  App->>API: POST /v1/topups (Idempotency-Key)
+  API->>Rail: STK Push
+  Rail-->>API: Accepted, CheckoutRequestID
+  API-->>App: pending
+  Rail->>API: Callback, maybe twice, maybe never
+  API->>API: Lock the top-up, credit the wallet once
+  App->>API: GET /v1/topups/{id}
+  API->>Rail: STK Query, if no callback came
+  API-->>App: succeeded | failed | expired
 ```
 
 ## Ledger
@@ -107,7 +111,7 @@ PostgreSQL enforces the rules the application also checks:
 
 Week 1 does **not** refuse an overdraft. A wallet can go negative. Spend limits arrive with peer transfers in M1. The books still have to balance: total debits equal total credits, and the test suite checks that after every test.
 
-`POST /v1/sandbox/journal-entries` exists so the ledger can be demonstrated. It is not the customer top-up API. M1 posts from the STK callback, not from this route.
+`POST /v1/sandbox/journal-entries` exists so the ledger can be demonstrated. It is not the customer top-up API. Top-ups post from the STK callback, not from this route.
 
 ## Handles
 
@@ -126,17 +130,30 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 
 `GET /v1/me` returns the signed-in user. `POST /v1/auth/sign-out` revokes the session. PINs are stored only as Argon2id hashes, and trivial PINs such as `1111` and `1234` are refused. Five wrong PINs in a row lock sign-in for 15 minutes. A code lasts 5 minutes, allows 5 guesses, and works once. `GET /v1/sandbox/inbox?phone=…` lists the latest messages for a phone. Anyone can read it, which is acceptable only because this is a sandbox.
 
+## Top-ups
+
+`POST /v1/topups` (signed in, with an `Idempotency-Key` header) sends an STK Push for `amount_cents` to the user's phone, or to `phone` if given. M-PESA collects whole shillings, so the amount must be a multiple of 100 cents, up to KES 250,000. The response is `pending`. Poll `GET /v1/topups/{id}` until it is `succeeded`, `failed`, or `expired`.
+
+- Daraja's callback goes to `/v1/payments/stk/callback/{token}`. Only the first final answer for a `CheckoutRequestID` changes anything. The status change and the wallet credit (debit `system:mpesa_float`, credit the wallet) commit in one transaction. Every callback, including duplicates, is kept in `stk_callbacks`.
+- A callback that arrives before the push response has been saved is applied as soon as it is.
+- If no callback has come after `STK_QUERY_AFTER_SECONDS` (60), reading the top-up asks Daraja's STK Query API, at most every 15 seconds. `make resolve-topups` does the same for every waiting top-up. After `STK_EXPIRE_AFTER_SECONDS` (300) with no answer, the top-up is `expired`. A late "paid" callback still credits it.
+- Replaying an `Idempotency-Key` returns the same top-up. Reusing it for a different amount is a 409.
+- Postgres enforces the allowed transitions, so `succeeded` can never go back to `pending`.
+
+`make smoke-topup PHONE=+254712345000` runs one top-up through a running API. The [Daraja sandbox runbook](docs/runbooks/daraja-sandbox-top-up.md) does the same against Safaricom's sandbox with your own credentials.
+
 ## M-PESA simulator
 
 [Pesa Playground](https://github.com/OmentaElvis/pesa-playground) is a local M-PESA simulator and a good interactive tool. It is a Rust/Tauri desktop app (and a Docker image aimed at that UI), and its roadmap targets Daraja 3.0. It is not a Python library the test suite can import, and a GUI is the wrong place to assert that a callback was dropped. Week 1 therefore ships a small Daraja-compatible mock behind `PaymentsProvider`.
 
-The adapter is `DarajaHttpProvider`. Point `base_url` at this mock today. The same client is what a later milestone will point at the Daraja sandbox (`sandbox.safaricom.co.ke` is allowed; `api.safaricom.co.ke` and every other Safaricom host are not, and the app refuses to start if `DARAJA_BASE_URL` points at one). An IntaSend adapter would implement the same protocol. The mock does not credit a wallet. That state machine is M1.
+The adapter is `DarajaHttpProvider`. `DARAJA_BASE_URL` points it at this mock by default, or at the Daraja sandbox (`sandbox.safaricom.co.ke` is allowed; `api.safaricom.co.ke` and every other Safaricom host are not, and the app refuses to start if `DARAJA_BASE_URL` points at one). An IntaSend adapter would implement the same protocol. The mock never touches the ledger. Only the top-up flow credits a wallet.
 
 The mock exposes:
 
 - `GET /sandbox/daraja/oauth/v1/generate?grant_type=client_credentials` with HTTP Basic auth. Any non-empty key and secret work. The sample credentials are `sandbox` / `sandbox`.
 - `POST /sandbox/daraja/mpesa/stkpush/v1/processrequest` with the usual Daraja body. The provider sends `X-Idempotency-Key`. Replaying it returns the same `CheckoutRequestID` and does not fire a second callback. A different body with the same key is HTTP 409.
 - An asynchronous callback to `CallBackURL`.
+- `POST /sandbox/daraja/mpesa/stkpushquery/v1/query`. It answers "still processing" (HTTP 500, `500.001.1001`) until the configured delay has passed, then gives the same result the callback carried. That includes pushes whose callback was dropped.
 
 The last three digits of the MSISDN pick the outcome. Any other number uses the default, which starts as success with no delay.
 
@@ -219,7 +236,8 @@ Coverage that matters for a ledger:
 - The database, not only the service, rejects an unbalanced entry, an entry with no postings, a non-positive amount, and any update or delete of a posting.
 - Two registrations of the same handle cannot both win.
 - Sign-in: PINs are Argon2id hashes, wrong PINs lock the account (parallel guesses are each counted), and codes expire, die after 5 guesses, and work once. Signed-out session tokens stop working.
-- The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback. A successful STK push does not create a ledger posting.
+- The mock delivers success, cancel, timeout, and insufficient-funds callbacks, waits when asked, and can drop a callback.
+- Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a callback that beats the push response is applied; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, and forged (wrong token) callbacks move no money; Postgres rejects illegal transitions.
 
 ## Roadmap
 

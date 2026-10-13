@@ -1,5 +1,5 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
-	run run-web lint lint-api lint-web fmt pre-commit
+	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
 API := cd api &&
@@ -62,6 +62,16 @@ run:
 
 run-web:
 	$(WEB) npm run dev
+
+# One STK top-up through a running API (`make run`), on the mock or the Daraja sandbox.
+# PHONE=+254712345000 succeeds on the mock; see docs/runbooks/daraja-sandbox-top-up.md.
+smoke-topup:
+	@test -n "$(PHONE)" || (echo "usage: make smoke-topup PHONE=+2547XXXXXXXX [AMOUNT=1]"; exit 1)
+	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1)
+
+# Check top-ups still waiting on M-PESA with STK Query.
+resolve-topups:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-resolve-topups
 
 lint: lint-api lint-web
 

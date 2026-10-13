@@ -1,7 +1,8 @@
-"""The seam Daraja sandbox and IntaSend will implement later.
+"""The seam between payment flows and a rail.
 
-Week 1's HTTP client speaks the classic Daraja STK surface. A future IntaSend
-adapter implements the same protocol without the ledger knowing which rail it is.
+The HTTP client speaks the classic Daraja STK surface, against the local mock
+or the Daraja sandbox. Another rail implements the same protocol without the
+payment flows knowing which rail it is.
 """
 
 from __future__ import annotations
@@ -55,6 +56,17 @@ class StkCallback:
     phone_e164: str | None
 
 
+@dataclass(frozen=True)
+class StkQueryResult:
+    """What STK Query says about a push. `processing` means M-PESA has no answer yet."""
+
+    checkout_request_id: str
+    processing: bool
+    result_code: int | None
+    result_desc: str
+    outcome: Outcome | None
+
+
 class PaymentsProvider(Protocol):
     name: str
 
@@ -63,6 +75,9 @@ class PaymentsProvider(Protocol):
 
     def stk_push(self, request: StkPushRequest) -> StkPushAccepted:
         """Ask the handset to authorize a whole-shilling collection."""
+
+    def stk_query(self, checkout_request_id: str) -> StkQueryResult:
+        """Ask the rail how a push ended, for when its callback never arrives."""
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         """Turn a rail callback body into a typed result. Does not post the ledger."""

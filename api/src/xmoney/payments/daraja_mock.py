@@ -3,7 +3,9 @@
 Pesa Playground is a Rust/Tauri desktop simulator. It is the wrong runtime for
 pytest, so this process speaks the STK endpoints itself. Outcomes are chosen
 by the last three digits of the MSISDN, or by PUT /__control/behavior for every
-other number.
+other number. STK Query reports "still processing" until the configured delay
+has passed, then the same outcome the callback carried, even when the
+callback was dropped.
 
 | Suffix | Callback |
 | --- | --- |
@@ -73,6 +75,8 @@ class StkRecord:
     phone: str
     amount_shillings: int
     callback_url: str
+    outcome: Outcome = Outcome.SUCCESS
+    completes_at: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -87,6 +91,7 @@ class DarajaMockState:
     default_behavior: Behavior = field(default_factory=Behavior)
     tokens: dict[str, float] = field(default_factory=dict)
     records_by_key: dict[str, StkRecord] = field(default_factory=dict)
+    records_by_checkout: dict[str, StkRecord] = field(default_factory=dict)
     attempts: list[CallbackAttempt] = field(default_factory=list)
     last_stk_body: dict[str, object] | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -96,6 +101,7 @@ class DarajaMockState:
             self.default_behavior = Behavior()
             self.tokens.clear()
             self.records_by_key.clear()
+            self.records_by_checkout.clear()
             self.attempts.clear()
             self.last_stk_body = None
 
@@ -126,6 +132,15 @@ class StkPushBody(BaseModel):
     CallBackURL: str
     AccountReference: str
     TransactionDesc: str
+
+
+class StkQueryBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    BusinessShortCode: str
+    Password: str
+    Timestamp: str
+    CheckoutRequestID: str
 
 
 def create_daraja_mock_app(state: DarajaMockState | None = None) -> FastAPI:
@@ -214,9 +229,10 @@ def build_daraja_router() -> APIRouter:
                         "idempotency key was already used with a different STK request",
                     )
                 return _accepted(existing)
-            record = _new_record(body, amount, idempotency_key, fingerprint)
+            record = _new_record(body, amount, idempotency_key, fingerprint, behavior)
             if idempotency_key is not None:
                 state.records_by_key[idempotency_key] = record
+            state.records_by_checkout[record.checkout_request_id] = record
 
         payload = _callback_payload(record, behavior)
         if behavior.drop_callback:
@@ -230,6 +246,30 @@ def build_daraja_router() -> APIRouter:
         else:
             background.add_task(_deliver, state, record.callback_url, payload, behavior.delay_ms)
         return _accepted(record)
+
+    @router.post("/mpesa/stkpushquery/v1/query")
+    def stk_query(body: StkQueryBody, request: Request) -> JSONResponse:
+        state = _state(request)
+        if not _bearer_is_valid(state, request.headers.get("authorization", "")):
+            return _error(401, "404.001.03", "Invalid Access Token")
+        with state._lock:
+            record = state.records_by_checkout.get(body.CheckoutRequestID)
+        if record is None:
+            return _error(400, "400.002.02", "Bad Request - Invalid CheckoutRequestID")
+        if time.monotonic() < record.completes_at:
+            return _error(500, "500.001.1001", "The transaction is being processed")
+        code, desc = RESULT_CODES[record.outcome]
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ResponseCode": "0",
+                "ResponseDescription": "The service request has been accepted successfully",
+                "MerchantRequestID": record.merchant_request_id,
+                "CheckoutRequestID": record.checkout_request_id,
+                "ResultCode": str(code),
+                "ResultDesc": desc,
+            },
+        )
 
     return router
 
@@ -327,6 +367,7 @@ def _new_record(
     amount: int,
     idempotency_key: str | None,
     fingerprint: str,
+    behavior: Behavior,
 ) -> StkRecord:
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     suffix = secrets.token_hex(4)
@@ -338,6 +379,8 @@ def _new_record(
         phone=body.PhoneNumber,
         amount_shillings=amount,
         callback_url=body.CallBackURL,
+        outcome=behavior.outcome,
+        completes_at=time.monotonic() + behavior.delay_ms / 1000,
     )
 
 
