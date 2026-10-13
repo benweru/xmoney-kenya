@@ -1,6 +1,6 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
 	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups \
-	openapi e2e screenshots
+	openapi e2e screenshots demo-seed demo-reset
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
 API := cd api &&
@@ -85,6 +85,14 @@ smoke-topup:
 	@test -n "$(PHONE)" || (echo "usage: make smoke-topup PHONE=+2547XXXXXXXX [AMOUNT=1]"; exit 1)
 	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1) \
 		$(if $(RAIL),--rail $(RAIL))
+
+# Demo wallets (@amina, @baraka, @wanjiku) with history, in the dev database.
+demo-seed:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-demo seed
+
+# What the public demo does nightly: delete every wallet and payment, then seed again.
+demo-reset:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-demo reset --yes
 
 # Check top-ups still waiting on M-PESA with STK Query.
 resolve-topups:
