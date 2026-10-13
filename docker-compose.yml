@@ -1,4 +1,6 @@
-# Disposable sandbox Postgres. Nothing in this stack is a production payment environment.
+# Disposable sandbox stack. Nothing in this stack is a production payment environment.
+# `docker compose up -d postgres` (make up) starts only the database for local development.
+# `docker compose --profile app up --build` (make demo) also runs the API and the web app.
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +19,31 @@ services:
       timeout: 5s
       retries: 30
     restart: unless-stopped
+
+  api:
+    profiles: ["app"]
+    build: ./api
+    environment:
+      SANDBOX_MODE: "true"
+      DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
+      # The API serves the Daraja mock itself, so it calls its own port.
+      DARAJA_BASE_URL: http://127.0.0.1:8000/sandbox/daraja
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    profiles: ["app"]
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
 
 volumes:
   xmoney_pg:

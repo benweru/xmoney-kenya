@@ -22,7 +22,7 @@ logger = logging.getLogger("xmoney")
 
 _NOTICE = (
     "Sandbox prototype. Not a Central Bank of Kenya licensed payment service. "
-    "Not affiliated with X. This process cannot move real money."
+    "Not affiliated with X Corp. This process cannot move real money."
 )
 
 
@@ -42,7 +42,7 @@ def create_app() -> FastAPI:
             "Sandbox-only prototype of a pay-by-@handle wallet for Kenya.\n\n"
             "This process refuses to run unless sandbox mode is on. It is not a "
             "Central Bank of Kenya licensed payment service, it is not affiliated "
-            "with X, and it cannot move real money."
+            "with X Corp., and it cannot move real money."
         ),
         lifespan=_lifespan,
     )

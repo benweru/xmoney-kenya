@@ -9,8 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  api:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
     services:
       postgres:
         image: postgres:16-alpine
@@ -45,3 +48,44 @@ jobs:
         run: alembic downgrade base && alembic upgrade head
       - name: Test
         run: pytest
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the demo stack
+        run: docker compose --profile app up -d --build
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS localhost:8000/health && curl -fsS localhost:3000 >/dev/null; then
+              echo; echo "stack is up"; exit 0
+            fi
+            sleep 2
+          done
+          docker compose --profile app logs
+          exit 1
+      - name: Stop
+        if: always()
+        run: docker compose --profile app down -v
