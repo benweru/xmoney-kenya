@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from xmoney.ledger.money import Direction, PostCommand, PostingLine
 
@@ -14,7 +14,8 @@ class PostingIn(BaseModel):
 
     account_id: UUID
     direction: Direction
-    amount_cents: int
+    # Strict so JSON 100.0 and "100" are rejected instead of coerced to cents.
+    amount_cents: StrictInt
 
 
 class PostEntryIn(BaseModel):

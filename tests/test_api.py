@@ -107,3 +107,22 @@ def test_sandbox_journal_is_idempotent(client) -> None:
     assert balance.json()["currency"] == "KES"
     float_balance = client.get(f"/v1/accounts/{MPESA_FLOAT.id}/balance")
     assert float_balance.json()["balance_cents"] == 5000
+
+
+def test_sandbox_journal_rejects_coerced_amounts(client) -> None:
+    created = client.post("/v1/users", json={"handle": "amina", "phone": "+254712345678"})
+    wallet = created.json()["wallet_account_id"]
+    for amount in (5000.0, "5000"):
+        response = client.post(
+            "/v1/sandbox/journal-entries",
+            json={
+                "idempotency_key": f"coerced-{type(amount).__name__}",
+                "description": "Coerced amount",
+                "postings": [
+                    {"account_id": str(MPESA_FLOAT.id), "direction": "debit", "amount_cents": 5000},
+                    {"account_id": wallet, "direction": "credit", "amount_cents": amount},
+                ],
+            },
+        )
+        assert response.status_code == 422, amount
+    assert client.get(f"/v1/accounts/{wallet}/balance").json()["balance_cents"] == 0
