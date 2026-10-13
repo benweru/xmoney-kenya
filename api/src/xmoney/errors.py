@@ -134,3 +134,9 @@ class InvalidCursor(XMoneyError):
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403
+
+
+class NotFound(XMoneyError):
+    code = "not_found"
+    http_status = 404
+

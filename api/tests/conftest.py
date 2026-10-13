@@ -82,6 +82,21 @@ def clean_tables(engine: Engine) -> Iterator[None]:
 
 
 @pytest.fixture
+def configure(monkeypatch: pytest.MonkeyPatch) -> Iterator[Callable[..., None]]:
+    """Override settings from environment variables for one test."""
+    from xmoney.config import get_settings
+
+    def _configure(**env: str) -> None:
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+        get_settings.cache_clear()
+
+    yield _configure
+    monkeypatch.undo()
+    get_settings.cache_clear()
+
+
+@pytest.fixture
 def db(engine: Engine) -> Iterator[Session]:
     session = Session(engine)
     try:

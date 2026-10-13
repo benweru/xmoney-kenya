@@ -1,4 +1,4 @@
-"""HTTP surface for health, handles, and the sandbox journal."""
+"""HTTP surface for health, handles, and the local-development journal."""
 
 from __future__ import annotations
 
@@ -71,7 +71,8 @@ def test_invalid_phone_and_unknown_balance(client) -> None:
     assert anonymous.json()["error"] == "not_authenticated"
 
 
-def test_sandbox_journal_is_idempotent(client, db) -> None:
+def test_sandbox_journal_is_idempotent(client, db, configure) -> None:
+    configure(SANDBOX_JOURNAL_ENABLED="true")
     created = client.post(
         "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
     )
@@ -109,7 +110,8 @@ def test_sandbox_journal_is_idempotent(client, db) -> None:
     assert get_balance(db, MPESA_FLOAT.id).balance_cents == 5000
 
 
-def test_sandbox_journal_rejects_coerced_amounts(client, db) -> None:
+def test_sandbox_journal_rejects_coerced_amounts(client, db, configure) -> None:
+    configure(SANDBOX_JOURNAL_ENABLED="true")
     created = client.post(
         "/v1/users", json={"handle": "amina", "phone": "+254712345678", "pin": "2580"}
     )

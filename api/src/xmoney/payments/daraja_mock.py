@@ -5,7 +5,9 @@ pytest, so this process speaks the STK endpoints itself. Outcomes are chosen
 by the last three digits of the MSISDN, or by PUT /__control/behavior for every
 other number. STK Query reports "still processing" until the configured delay
 has passed, then the same outcome the callback carried, even when the
-callback was dropped.
+callback was dropped. The public demo turns the control route off with
+DARAJA_MOCK_CONTROL_ENABLED=false, so one visitor cannot change outcomes for
+everyone; the suffix rules still apply.
 
 | Suffix | Callback |
 | --- | --- |
@@ -40,6 +42,7 @@ from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from xmoney.config import get_settings
 from xmoney.payments.daraja import RESULT_CODES
 from xmoney.payments.provider import Outcome
 
@@ -167,8 +170,10 @@ def build_daraja_router() -> APIRouter:
             "drop_callback": behavior.drop_callback,
         }
 
-    @router.put("/__control/behavior")
-    def set_behavior(body: BehaviorIn, request: Request) -> dict[str, object]:
+    @router.put("/__control/behavior", response_model=None)
+    def set_behavior(body: BehaviorIn, request: Request) -> dict[str, object] | JSONResponse:
+        if not get_settings().daraja_mock_control_enabled:
+            return _error(404, "404.000", "Not found")
         state = _state(request)
         with state._lock:
             state.default_behavior = Behavior(
