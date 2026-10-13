@@ -1,0 +1,43 @@
+"""Runtime settings. Sandbox mode is not optional."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from xmoney.errors import SandboxViolation
+from xmoney.sandbox import assert_sandbox_daraja_host
+
+
+class Settings(BaseSettings):
+    """Process configuration loaded from the environment and an optional `.env` file."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str = "postgresql+psycopg://xmoney:xmoney@localhost:5432/xmoney"
+    sandbox_mode: bool = True
+    daraja_consumer_key: str = "sandbox"
+    daraja_consumer_secret: str = "sandbox"
+    daraja_shortcode: str = "174379"
+    daraja_passkey: str = "sandbox-passkey"
+    daraja_base_url: str = "http://127.0.0.1:8000/sandbox/daraja"
+
+    @model_validator(mode="after")
+    def refuse_real_money(self) -> Settings:
+        if self.sandbox_mode is not True:
+            raise ValueError(
+                "Refusing to start: X Money for Kenya is a sandbox prototype and "
+                "cannot be configured to move real money."
+            )
+        try:
+            assert_sandbox_daraja_host(self.daraja_base_url)
+        except SandboxViolation as exc:
+            raise ValueError(f"Refusing to start: {exc}") from exc
+        return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
