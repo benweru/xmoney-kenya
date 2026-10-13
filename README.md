@@ -4,7 +4,7 @@ A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insen
 
 > **Sandbox only. This is not a payment service.**
 >
-> X Money for Kenya does not hold a Central Bank of Kenya licence, is not affiliated with X, Safaricom, or IntaSend, and **cannot move real money**. The process refuses to start unless sandbox mode is on, and the Daraja client refuses the production host `api.safaricom.co.ke`. Nothing in this repository is an offer to store, transmit, or settle customer funds.
+> X Money for Kenya does not hold a Central Bank of Kenya licence, is not affiliated with X, Safaricom, or IntaSend, and **cannot move real money**. The process refuses to start unless sandbox mode is on, and both the settings loader and the Daraja client refuse every Safaricom host except `sandbox.safaricom.co.ke`. Nothing in this repository is an offer to store, transmit, or settle customer funds.
 
 ## What a Kenya launch would need
 
@@ -90,7 +90,8 @@ PostgreSQL enforces the rules the application also checks:
 
 - Debits equal credits, and there are at least two postings, via a deferred constraint trigger.
 - Amounts are positive bigint cents.
-- Postings, journal entries, and accounts cannot be updated or deleted.
+- Postings, journal entries, and accounts cannot be updated, deleted, or truncated.
+- Postings can only be added in the transaction that created their journal entry, so a committed entry cannot gain new lines later.
 - Handles are unique case-insensitively, phones are unique, and each user has one wallet.
 
 Week 1 does **not** refuse an overdraft. A wallet can go negative. Spend limits arrive with peer transfers in week 3. The books still have to balance: total debits equal total credits, and the test suite checks that after every test.
@@ -109,7 +110,7 @@ The phone must be E.164 for a Kenyan mobile: `+254` then `7` or `1` and eight mo
 
 [Pesa Playground](https://github.com/OmentaElvis/pesa-playground) is a local M-PESA simulator and a good interactive tool. It is a Rust/Tauri desktop app (and a Docker image aimed at that UI), and its roadmap targets Daraja 3.0. It is not a Python library the test suite can import, and a GUI is the wrong place to assert that a callback was dropped. Week 1 therefore ships a small Daraja-compatible mock behind `PaymentsProvider`.
 
-The adapter is `DarajaHttpProvider`. Point `base_url` at this mock today. The same client is what a later week will point at the Daraja sandbox (`sandbox.safaricom.co.ke` is allowed; `api.safaricom.co.ke` is not). An IntaSend adapter would implement the same protocol. The mock does not credit a wallet. That state machine is week 2.
+The adapter is `DarajaHttpProvider`. Point `base_url` at this mock today. The same client is what a later week will point at the Daraja sandbox (`sandbox.safaricom.co.ke` is allowed; `api.safaricom.co.ke` and every other Safaricom host are not, and the app refuses to start if `DARAJA_BASE_URL` points at one). An IntaSend adapter would implement the same protocol. The mock does not credit a wallet. That state machine is week 2.
 
 The mock exposes:
 
@@ -164,7 +165,7 @@ Every response carries `X-Sandbox: true` and `X-Moves-Real-Money: false`.
 make test
 ```
 
-Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases. GitHub Actions runs the same lint, migration, and pytest steps against Postgres 16.
+Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs the same lint, migration, and pytest steps against Postgres 16, plus `alembic check` for model drift and a downgrade/upgrade round trip.
 
 Coverage that matters for a ledger:
 

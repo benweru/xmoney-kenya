@@ -39,5 +39,9 @@ jobs:
         run: ruff check src tests alembic && ruff format --check src tests alembic
       - name: Migrate
         run: alembic upgrade head
+      - name: Check models match migrations
+        run: alembic check
+      - name: Downgrade and re-upgrade
+        run: alembic downgrade base && alembic upgrade head
       - name: Test
         run: pytest

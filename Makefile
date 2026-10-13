@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate test run lint fmt
+.PHONY: setup up down migrate migrate-check test run lint fmt
 
 PY := .venv/bin/python
 PIP := $(PY) -m pip
@@ -32,6 +32,12 @@ down:
 
 migrate:
 	DATABASE_URL=$(DEV_DATABASE_URL) $(ALEMBIC) upgrade head
+
+migrate-check:
+	DATABASE_URL=$(TEST_DATABASE_URL) $(ALEMBIC) upgrade head
+	DATABASE_URL=$(TEST_DATABASE_URL) $(ALEMBIC) check
+	DATABASE_URL=$(TEST_DATABASE_URL) $(ALEMBIC) downgrade base
+	DATABASE_URL=$(TEST_DATABASE_URL) $(ALEMBIC) upgrade head
 
 test:
 	DATABASE_URL=$(TEST_DATABASE_URL) $(ALEMBIC) upgrade head

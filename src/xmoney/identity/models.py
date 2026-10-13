@@ -25,6 +25,7 @@ class User(Base):
         ),
         UniqueConstraint("handle", name="uq_users_handle"),
         UniqueConstraint("phone_e164", name="uq_users_phone_e164"),
+        {"comment": "Registered people. Handles are stored lowercase without the @."},
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)

@@ -63,6 +63,7 @@ class LedgerAccount(Base):
             unique=True,
             postgresql_where=text("owner_user_id IS NOT NULL"),
         ),
+        {"comment": "Chart of accounts. Balances are not stored on this table."},
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
@@ -94,6 +95,7 @@ class JournalEntry(Base):
             "char_length(description) BETWEEN 1 AND 500",
             name="ck_journal_entries_description_len",
         ),
+        {"comment": "Immutable journal headers. Idempotency keys compare a hash of the postings."},
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
@@ -115,6 +117,7 @@ class Posting(Base):
         UniqueConstraint("journal_entry_id", "line_no", name="uq_postings_entry_line"),
         Index("ix_postings_account_id", "account_id"),
         Index("ix_postings_journal_entry_id", "journal_entry_id"),
+        {"comment": "Immutable debit and credit lines. Amounts are integer KES cents."},
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
