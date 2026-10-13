@@ -1,6 +1,7 @@
 # Disposable sandbox stack. Nothing in this stack is a production payment environment.
 # `docker compose up -d postgres` (make up) starts only the database for local development.
-# `docker compose --profile app up --build` (make demo) also runs the API and the web app.
+# `docker compose --profile app up --build` (make demo) also runs the API and the web app
+# (http://localhost:3000, with the API at /api/ on the same origin).
 services:
   postgres:
     image: postgres:16-alpine
@@ -28,18 +29,18 @@ services:
       DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
       # The API serves the Daraja mock itself, so it calls its own port.
       DARAJA_BASE_URL: http://127.0.0.1:8000/sandbox/daraja
+      # The web container's nginx proxies /api/* here and appends to X-Forwarded-For.
+      TRUSTED_PROXY_HOPS: "1"
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
 
+  # The static wallet app behind nginx, which also proxies /api/* to the API (same origin).
   web:
     profiles: ["app"]
-    build:
-      context: ./web
-      args:
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+    build: ./web
     ports:
       - "3000:3000"
     depends_on:
