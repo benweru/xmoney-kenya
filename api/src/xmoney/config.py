@@ -7,6 +7,7 @@ from functools import lru_cache
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import URL
 
 from xmoney.errors import SandboxViolation
 from xmoney.sandbox import assert_sandbox_daraja_host
@@ -18,6 +19,14 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://xmoney:xmoney@localhost:5432/xmoney"
+    # On AWS the URL is assembled from these, so the RDS-managed password never sits
+    # in a plain environment variable. DATABASE_URL is ignored when DB_HOST is set.
+    db_host: str | None = None
+    db_port: int = 5432
+    db_name: str = "xmoney"
+    db_username: str | None = None
+    db_password: str | None = None
+    db_sslmode: str = "require"
     sandbox_mode: bool = True
     daraja_consumer_key: str = "sandbox"
     daraja_consumer_secret: str = "sandbox"
@@ -75,7 +84,23 @@ class Settings(BaseSettings):
                 "Refusing to start: SANDBOX_JOURNAL_ENABLED is for local development and "
                 "cannot be on when PUBLIC_BASE_URL is a public https URL."
             )
+        if self.db_host is not None and not (self.db_username and self.db_password):
+            raise ValueError("DB_HOST is set, so DB_USERNAME and DB_PASSWORD must be too")
         return self
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        if self.db_host is None:
+            return self.database_url
+        return URL.create(
+            "postgresql+psycopg",
+            username=self.db_username,
+            password=self.db_password,
+            host=self.db_host,
+            port=self.db_port,
+            database=self.db_name,
+            query={"sslmode": self.db_sslmode},
+        ).render_as_string(hide_password=False)
 
 
 @lru_cache

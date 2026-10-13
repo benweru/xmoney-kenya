@@ -22,7 +22,7 @@ _sessionmaker: sessionmaker[Session] | None = None
 def get_engine() -> Engine:
     global _engine, _sessionmaker
     if _engine is None:
-        _engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+        _engine = create_engine(get_settings().sqlalchemy_url, pool_pre_ping=True)
         _sessionmaker = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False)
     return _engine
 
