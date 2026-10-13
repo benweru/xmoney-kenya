@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from xmoney.auth.deps import current_user
 from xmoney.auth.service import SessionUser
 from xmoney.db import get_db
+from xmoney.ratelimit.deps import limit_by_user
+from xmoney.ratelimit.service import SEND
 from xmoney.transfers.service import TransferView, send
 
 router = APIRouter(tags=["transfers"])
@@ -54,6 +56,7 @@ class TransferOut(BaseModel):
     response_model=TransferOut,
     status_code=201,
     responses={200: {"model": TransferOut, "description": "Idempotent replay"}},
+    dependencies=[Depends(limit_by_user(SEND))],
 )
 def create_transfer(
     body: TransferIn,

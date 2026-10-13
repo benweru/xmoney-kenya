@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # The largest single top-up. The public demo lowers it.
     topup_max_cents: int = Field(default=250_000 * 100, gt=0, le=250_000 * 100)
 
+    rate_limits_enabled: bool = True
+    # Proxies in front of the API that append to X-Forwarded-For (CloudFront + ALB = 2).
+    # Leave at 0 when the API is reached directly, or clients could forge their IP.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+
     @model_validator(mode="after")
     def refuse_real_money(self) -> Settings:
         if self.sandbox_mode is not True:

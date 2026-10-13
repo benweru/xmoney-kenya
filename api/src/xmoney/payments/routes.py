@@ -18,6 +18,8 @@ from xmoney.payments.deps import get_payments_provider
 from xmoney.payments.provider import PaymentsProvider
 from xmoney.payments.schemas import TopupIn, TopupOut
 from xmoney.payments.topups import get_topup, handle_stk_callback, start_topup
+from xmoney.ratelimit.deps import limit_by_user
+from xmoney.ratelimit.service import START_TOPUP
 
 router = APIRouter(tags=["top-ups"])
 
@@ -27,6 +29,7 @@ router = APIRouter(tags=["top-ups"])
     response_model=TopupOut,
     status_code=201,
     responses={200: {"model": TopupOut, "description": "Idempotent replay"}},
+    dependencies=[Depends(limit_by_user(START_TOPUP))],
 )
 def create_topup(
     body: TopupIn,
