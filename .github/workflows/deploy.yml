@@ -1,0 +1,146 @@
+# Ship main to the AWS demo: the API image to ECR and ECS (with the scheduled jobs),
+# and the static wallet to S3 + CloudFront. Credentials come from GitHub OIDC; there
+# are no AWS keys in GitHub. Until the AWS_DEPLOY_ROLE_ARN repository variable is set
+# (docs/runbooks/aws-first-deploy.md), the job is skipped, not failed.
+# Infrastructure changes are not applied here; a person runs terraform apply.
+name: Deploy demo
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: demo
+      url: ${{ steps.config.outputs.public_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'eu-west-1' }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-${{ github.run_id }}
+
+      - name: Read the app stack's deploy config
+        id: config
+        run: |
+          config=$(aws ssm get-parameter --name /xmoney-demo/deploy --query Parameter.Value --output text)
+          echo "$config" | jq .
+          {
+            echo "CLUSTER=$(jq -r .cluster <<<"$config")"
+            echo "API_SERVICE=$(jq -r .api_service <<<"$config")"
+            echo "API_FAMILY=$(jq -r .api_family <<<"$config")"
+            echo "JOB_FAMILIES=$(jq -c .job_families <<<"$config")"
+            echo "SCHEDULE_GROUP=$(jq -r .schedule_group <<<"$config")"
+            echo "WEB_BUCKET=$(jq -r .web_bucket <<<"$config")"
+            echo "DISTRIBUTION_ID=$(jq -r .distribution_id <<<"$config")"
+            echo "PUBLIC_URL=$(jq -r .public_url <<<"$config")"
+          } >> "$GITHUB_ENV"
+          echo "public_url=$(jq -r .public_url <<<"$config")" >> "$GITHUB_OUTPUT"
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the API image
+        env:
+          REPOSITORY: ${{ steps.ecr.outputs.registry }}/xmoney-demo/api
+        run: |
+          image="$REPOSITORY:$IMAGE_TAG"
+          if aws ecr describe-images --repository-name xmoney-demo/api --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "$image already pushed (tags are immutable)"
+          else
+            docker build -t "$image" api
+            docker push "$image"
+          fi
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      - name: Register task definitions with the new image
+        run: |
+          register() {
+            aws ecs describe-task-definition --task-definition "$1" --query taskDefinition \
+              | jq --arg image "$IMAGE" '
+                  .containerDefinitions[0].image = $image
+                  | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                        .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)' \
+              > /tmp/taskdef.json
+            aws ecs register-task-definition --cli-input-json file:///tmp/taskdef.json \
+              --query taskDefinition.taskDefinitionArn --output text
+          }
+          echo "API_TASK_DEF=$(register "$API_FAMILY")" >> "$GITHUB_ENV"
+          jobs='{}'
+          for name in $(jq -r 'keys[]' <<<"$JOB_FAMILIES"); do
+            arn=$(register "$(jq -r --arg n "$name" '.[$n]' <<<"$JOB_FAMILIES")")
+            jobs=$(jq -c --arg n "$name" --arg a "$arn" '. + {($n): $a}' <<<"$jobs")
+          done
+          echo "JOB_TASK_DEFS=$jobs" >> "$GITHUB_ENV"
+
+      - name: Roll the API (it runs migrations on start)
+        run: |
+          aws ecs update-service --cluster "$CLUSTER" --service "$API_SERVICE" \
+            --task-definition "$API_TASK_DEF" >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$API_SERVICE"
+
+      - name: Point the schedules at the new job revisions
+        run: |
+          for name in $(jq -r 'keys[]' <<<"$JOB_TASK_DEFS"); do
+            arn=$(jq -r --arg n "$name" '.[$n]' <<<"$JOB_TASK_DEFS")
+            aws scheduler get-schedule --group-name "$SCHEDULE_GROUP" --name "$name" \
+              | jq --arg arn "$arn" '
+                  .Target.EcsParameters.TaskDefinitionArn = $arn
+                  | {Name, GroupName, Description, ScheduleExpression, ScheduleExpressionTimezone,
+                     FlexibleTimeWindow, State, Target}
+                  | with_entries(select(.value != null))' \
+              > /tmp/schedule.json
+            aws scheduler update-schedule --cli-input-json file:///tmp/schedule.json >/dev/null
+            echo "$name -> $arn"
+          done
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build the wallet
+        working-directory: web
+        env:
+          NEXT_PUBLIC_API_URL: /api
+        run: npm ci && npm run build
+
+      - name: Upload the wallet and invalidate CloudFront
+        working-directory: web
+        run: |
+          aws s3 sync out/_next/static "s3://$WEB_BUCKET/_next/static" \
+            --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync out "s3://$WEB_BUCKET" --delete --exclude "_next/static/*" \
+            --cache-control "public, max-age=0, must-revalidate"
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" \
+            --query Invalidation.Id --output text
+
+      - name: Smoke test
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS "$PUBLIC_URL/api/health" && curl -fsS -o /dev/null "$PUBLIC_URL/"; then
+              echo; echo "live at $PUBLIC_URL"; exit 0
+            fi
+            sleep 10
+          done
+          exit 1
