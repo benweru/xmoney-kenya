@@ -25,6 +25,6 @@ class UserOut(BaseModel):
 
 
 class HandleOut(BaseModel):
+    """Public. Enough to confirm a recipient exists, nothing that identifies a wallet."""
+
     handle: str
-    user_id: UUID
-    wallet_account_id: UUID

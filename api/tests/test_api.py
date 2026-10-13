@@ -34,16 +34,11 @@ def test_register_and_lookup_round_trip(client) -> None:
 
     found = client.get("/v1/handles/AMINA")
     assert found.status_code == 200
-    assert found.json() == {
-        "handle": "amina",
-        "user_id": body["id"],
-        "wallet_account_id": body["wallet_account_id"],
-    }
-    assert "phone" not in found.json()
+    assert found.json() == {"handle": "amina"}
 
     encoded = client.get("/v1/handles/%40amina")
     assert encoded.status_code == 200
-    assert encoded.json()["user_id"] == body["id"]
+    assert encoded.json() == {"handle": "amina"}
 
     missing = client.get("/v1/handles/otieno")
     assert missing.status_code == 404

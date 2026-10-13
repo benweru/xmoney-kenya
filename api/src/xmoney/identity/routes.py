@@ -27,8 +27,4 @@ def register(body: RegisterIn, session: Session = Depends(get_db)) -> UserOut:
 @router.get("/handles/{handle}", response_model=HandleOut)
 def get_handle(handle: str, session: Session = Depends(get_db)) -> HandleOut:
     record = lookup_handle(session, handle)
-    return HandleOut(
-        handle=record.handle,
-        user_id=record.user_id,
-        wallet_account_id=record.wallet_account_id,
-    )
+    return HandleOut(handle=record.handle)
