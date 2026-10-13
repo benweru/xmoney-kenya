@@ -1,5 +1,6 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
-	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups
+	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups \
+	openapi e2e screenshots
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
 API := cd api &&
@@ -60,8 +61,22 @@ run:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/uvicorn xmoney.main:app --reload \
 		--app-dir src --host 0.0.0.0 --port 8000
 
+# next dev on :3000 calls the API on :8000 directly, so api/.env needs CORS_ORIGINS (see .env.example).
 run-web:
 	$(WEB) npm run dev
+
+# Regenerate api/openapi.json and the web app's typed client from it.
+openapi:
+	$(API) $(VENV)/python scripts/export_openapi.py
+	$(WEB) npm run api:types
+
+# Playwright against a running stack on the mock (`make demo` in another terminal).
+e2e:
+	$(WEB) npx playwright test
+
+# README screenshots from a fresh `make demo` stack, into docs/images/.
+screenshots:
+	$(WEB) node scripts/screenshots.mjs
 
 # One STK top-up through a running API (`make run`), on the mock or the Daraja sandbox.
 # PHONE=+254712345000 succeeds on the mock; see docs/runbooks/daraja-sandbox-top-up.md.
