@@ -273,6 +273,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/payment-rails": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Rails
+     * @description The rails a top-up can use here, default first.
+     */
+    get: operations["list_rails_v1_payment_rails_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/payments/stk/callback/{token}": {
     parameters: {
       query?: never;
@@ -610,6 +630,25 @@ export interface components {
       /** Line No */
       line_no: number;
     };
+    /** RailOut */
+    RailOut: {
+      /** Label */
+      label: string;
+      /** Name */
+      name: string;
+      /**
+       * Restricted
+       * @description Only the demo owner's test phones can use it.
+       */
+      restricted: boolean;
+    };
+    /** RailsOut */
+    RailsOut: {
+      /** Default */
+      default: string;
+      /** Rails */
+      rails: components["schemas"]["RailOut"][];
+    };
     /** RegisterIn */
     RegisterIn: {
       /**
@@ -691,6 +730,11 @@ export interface components {
        * @example +254708374149
        */
       phone?: string | null;
+      /**
+       * Rail
+       * @description The rail for the STK Push. Defaults to GET /v1/payment-rails `default`.
+       */
+      rail?: ("mock" | "sandbox") | null;
     };
     /** TopupOut */
     TopupOut: {
@@ -714,6 +758,8 @@ export interface components {
       mpesa_receipt_number: string | null;
       /** Phone */
       phone: string;
+      /** Rail */
+      rail: string;
       /** Resolved At */
       resolved_at: string | null;
       /** Result Code */
@@ -1231,6 +1277,26 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_rails_v1_payment_rails_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RailsOut"];
         };
       };
     };

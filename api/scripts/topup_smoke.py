@@ -27,6 +27,7 @@ def main() -> int:
     parser.add_argument("--phone", required=True, help="E.164, for example +254708374149")
     parser.add_argument("--pin", default="2580")
     parser.add_argument("--amount", type=int, default=1, help="whole shillings")
+    parser.add_argument("--rail", choices=["mock", "sandbox"], help="default: the API's first rail")
     parser.add_argument("--wait", type=int, default=360, help="seconds to wait for a result")
     args = parser.parse_args()
 
@@ -55,7 +56,7 @@ def main() -> int:
 
         started = http.post(
             "/v1/topups",
-            json={"amount_cents": args.amount * 100},
+            json={"amount_cents": args.amount * 100, "rail": args.rail},
             headers={"Idempotency-Key": f"smoke-{uuid.uuid4()}"},
         )
         if started.status_code not in (200, 201):

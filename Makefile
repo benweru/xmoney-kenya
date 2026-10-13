@@ -79,10 +79,12 @@ screenshots:
 	$(WEB) node scripts/screenshots.mjs
 
 # One STK top-up through a running API (`make run`), on the mock or the Daraja sandbox.
-# PHONE=+254712345000 succeeds on the mock; see docs/runbooks/daraja-sandbox-top-up.md.
+# PHONE=+254712345000 succeeds on the mock. RAIL=sandbox uses the Daraja sandbox;
+# see docs/runbooks/daraja-sandbox-top-up.md.
 smoke-topup:
 	@test -n "$(PHONE)" || (echo "usage: make smoke-topup PHONE=+2547XXXXXXXX [AMOUNT=1]"; exit 1)
-	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1)
+	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1) \
+		$(if $(RAIL),--rail $(RAIL))
 
 # Check top-ups still waiting on M-PESA with STK Query.
 resolve-topups:

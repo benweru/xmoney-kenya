@@ -99,9 +99,11 @@ class DarajaHttpProvider:
         consumer_secret: str,
         shortcode: str,
         passkey: str,
+        name: str = "daraja",
         client: httpx.Client | None = None,
     ) -> None:
         assert_sandbox_daraja_host(base_url)
+        self.name = name
         self.base_url = base_url.rstrip("/")
         self.consumer_key = consumer_key
         self.consumer_secret = consumer_secret

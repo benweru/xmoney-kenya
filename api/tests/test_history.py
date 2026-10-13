@@ -63,7 +63,7 @@ def _walk(http: TestClient, limit: int) -> tuple[list[str], int]:
 @pytest.fixture
 def rail(client: TestClient) -> Iterator[DarajaMockState]:
     from xmoney.main import app
-    from xmoney.payments.deps import get_payments_provider
+    from xmoney.payments.deps import Rails, get_rails
 
     state = DarajaMockState()
     mock = TestClient(create_daraja_mock_app(state))
@@ -75,7 +75,7 @@ def rail(client: TestClient) -> Iterator[DarajaMockState]:
         passkey="sandbox-passkey",
         client=mock,
     )
-    app.dependency_overrides[get_payments_provider] = lambda: provider
+    app.dependency_overrides[get_rails] = lambda: Rails.of(provider)
     try:
         yield state
     finally:
