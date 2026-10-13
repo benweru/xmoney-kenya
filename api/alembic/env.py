@@ -5,9 +5,11 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from xmoney.auth import models as auth_models  # noqa: F401
 from xmoney.config import get_settings
 from xmoney.db import Base
 from xmoney.identity import models as identity_models  # noqa: F401
+from xmoney.inbox import models as inbox_models  # noqa: F401
 from xmoney.ledger import models as ledger_models  # noqa: F401
 
 config = context.config

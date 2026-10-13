@@ -86,6 +86,31 @@ class ProviderError(XMoneyError):
             self.http_status = status_code
 
 
+class InvalidPin(XMoneyError):
+    code = "invalid_pin"
+    http_status = 422
+
+
+class InvalidCredentials(XMoneyError):
+    code = "invalid_credentials"
+    http_status = 401
+
+
+class AccountLocked(XMoneyError):
+    code = "account_locked"
+    http_status = 423
+
+
+class InvalidOtp(XMoneyError):
+    code = "invalid_otp"
+    http_status = 401
+
+
+class NotAuthenticated(XMoneyError):
+    code = "not_authenticated"
+    http_status = 401
+
+
 class SandboxViolation(XMoneyError):
     code = "sandbox_violation"
     http_status = 403

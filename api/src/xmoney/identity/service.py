@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from xmoney.auth.models import UserPin
+from xmoney.auth.pins import hash_pin, require_new_pin
 from xmoney.db import release_read_transaction
 from xmoney.errors import AccountNotFound, HandleTaken, PhoneTaken, UserNotFound
 from xmoney.identity.models import User
@@ -34,10 +36,16 @@ class HandleRecord:
     wallet_account_id: UUID
 
 
-def register_user(session: Session, *, handle: str, phone: str) -> RegisteredUser:
-    """Create the user and a credit-normal KES wallet. Commits the session."""
+def register_user(
+    session: Session, *, handle: str, phone: str, pin: str | None = None
+) -> RegisteredUser:
+    """Create the user, a credit-normal KES wallet, and (when given) a PIN. Commits.
+
+    A user without a PIN cannot sign in. Only seed data and tests create one.
+    """
     normalized_handle = normalize_handle(handle)
     normalized_phone = normalize_phone(phone)
+    pin_hash = hash_pin(require_new_pin(pin)) if pin is not None else None
     release_read_transaction(session)
     user_id = uuid4()
     wallet_id = uuid4()
@@ -57,6 +65,8 @@ def register_user(session: Session, *, handle: str, phone: str) -> RegisteredUse
                 )
             )
             session.flush()
+            if pin_hash is not None:
+                session.add(UserPin(user_id=user_id, pin_hash=pin_hash))
             session.refresh(user)
             created_at = user.created_at
     except IntegrityError as exc:

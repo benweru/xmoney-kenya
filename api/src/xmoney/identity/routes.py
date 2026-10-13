@@ -14,7 +14,7 @@ router = APIRouter(tags=["identity"])
 
 @router.post("/users", response_model=UserOut, status_code=201)
 def register(body: RegisterIn, session: Session = Depends(get_db)) -> UserOut:
-    user = register_user(session, handle=body.handle, phone=body.phone)
+    user = register_user(session, handle=body.handle, phone=body.phone, pin=body.pin)
     return UserOut(
         id=user.id,
         handle=user.handle,
