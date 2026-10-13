@@ -7,8 +7,8 @@ export default function Home() {
         role="note"
         className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm"
       >
-        <strong>Sandbox only.</strong> This prototype cannot move real money. It is not a
-        licensed payment service and is not affiliated with X Corp or Safaricom.
+        <strong>Sandbox only.</strong> This prototype cannot move real money. It is not a licensed
+        payment service and is not affiliated with X Corp or Safaricom.
       </div>
 
       <header className="flex flex-col gap-3">
@@ -21,8 +21,8 @@ export default function Home() {
 
       <section className="flex flex-col gap-2 text-sm opacity-80">
         <p>
-          The wallet app is not built yet. This page is the placeholder for the Next.js
-          frontend; sign-in, top-up, send, and history arrive in later milestones.
+          The wallet app is not built yet. This page is the placeholder for the Next.js frontend;
+          sign-in, top-up, send, and history arrive in later milestones.
         </p>
         <p>
           The API is running at{" "}
