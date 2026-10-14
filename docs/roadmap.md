@@ -12,9 +12,10 @@ X Money for Kenya is a pay-by-@handle wallet. You top up from M-PESA, send to `@
 
 1. **README, top of the page**: a one-line pitch, a disclaimer ("Sandbox-only. Not affiliated with X Corp or Safaricom."), a **Live demo** link, a 30-second GIF of a top-up and a send, and CI/coverage badges.
 2. **"Why this is interesting"**: five bullets, each linking to code or a doc. For example: ledger invariants enforced by Postgres triggers, exactly-once STK callbacks, reconciliation against Daraja Transaction Status, a case queue for AML alerts, and k6 results at N requests per second.
-3. **Screenshots**: the wallet app (home, send, history) and the back-office console (reconciliation breaks, case queue).
-4. **One architecture diagram** (app and AWS) and links to `docs/adr/`, `docs/threat-model.md`, and `docs/compliance.md`.
-5. **Try it in one command**: `make demo` (docker compose: API, worker, web, Postgres, Daraja mock, seeded users).
+3. **"Proof" table**: the latest measured numbers (sends/s, p95, ledger drift, chaos faults survived, mutation score, monthly cost), each linking to its write-up in `docs/evidence/`.
+4. **Screenshots**: the wallet app (home, send, history) and the back-office console (reconciliation breaks, case queue).
+5. **One architecture diagram** (app and AWS) and links to `docs/adr/`, `docs/threat-model.md`, and `docs/compliance.md`.
+6. **Try it in one command**: `make demo` (docker compose: API, worker, web, Postgres, Daraja mock, seeded users).
 
 The public demo is fully open, with no password. It has seeded accounts such as `@amina` and `@baraka`, a "sandbox inbox" that shows one-time codes instead of sending SMS, per-IP and per-user rate limits, and a nightly reset. A rail switch lets a visitor top up through the **real Daraja sandbox** (using the project's sandbox credentials and test MSISDN) or through the mock.
 
@@ -90,9 +91,34 @@ Cost guardrails:
 - Tag every resource (`project=xmoney-kenya`, `env=demo`) so Cost Explorer can filter by it.
 - IAM least privilege: separate task roles for the API, worker, and jobs, each reading only its own secrets. Write an ADR on the IAM design and one on "why no NAT gateway".
 
+## Proof track
+
+Claims are cheap. Every milestone also ships **evidence a reviewer can check**: a number, the command that produced it, and the commit it ran against. The evidence is part of each milestone below, not a separate phase.
+
+Rules:
+
+- **Where it lives**: headline numbers and badges go in the README. Full write-ups, raw k6 output, screenshots, and scan reports go in `docs/evidence/`, indexed by [`docs/evidence/README.md`](evidence/README.md) with a status per item (planned, in progress, published).
+- **Reproducible**: each evidence doc names the git SHA, the environment (local compose or AWS, with task and RDS sizes), the date, and the exact command. A number with no command is not published.
+- **Core vs stretch**: core items are part of the milestone's "done when". Stretch items are nice to have. Never block a milestone on a stretch item.
+- **Honest numbers**: publish misses too. A p99 that missed its target, with a written reason, is stronger evidence than a hidden one.
+- **Critique**: each milestone, and each PR that lands, ends with a short blunt critique in `docs/critique/` (format in [`docs/critique/README.md`](critique/README.md)). The top finding becomes a roadmap item. The first one is [`docs/critique/m0-m1.md`](critique/m0-m1.md).
+
+### Load-test history
+
+Re-run the same k6 scenario at the end of every milestone from M2 on, and add a row. Never edit old rows. The scenario: seeded wallets, a mix of 80% P2P sends and 20% mock-rail top-ups, a 5-minute steady stage after a 1-minute ramp. k6 runs from a short-lived ECS task in the same region, so home internet latency does not pollute the numbers. Before and after each run, a drift check asserts that the debits and credits of all postings are equal (`trial_totals`), and that each wallet's balance equals the replay of its transfers and top-ups.
+
+| Milestone | Date | Git SHA | Environment | Sends/s (sustained) | p50 | p95 | p99 | Error rate | Ledger drift | AWS cost/month (Cost Explorer) | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| M2 | | | 1× API task 0.25 vCPU/0.5 GB, `db.t4g.micro` | | | | | | must be 0 | | first baseline |
+| M3 | | | same | | | | | | must be 0 | | after the hot-row fix |
+
+"Error rate" counts 5xx responses and timeouts only. Expected refusals, such as 402 insufficient funds and 409 idempotency conflicts, are counted separately. Cost is the actual bill from Cost Explorer filtered on `project=xmoney-kenya`, not an estimate.
+
+**Budget realism.** One 0.25 vCPU Fargate task in front of a burstable `db.t4g.micro` is small. The core targets below are set for that hardware, not for a bank. Load runs last minutes, not hours, so they cost cents. Shut the stack down afterwards with `make aws-sleep`. Do not scale up for a nicer number unless the table says so, and the cost column shows it.
+
 ## Milestones
 
-Do them in order. Each one ends with the app deployed, the README updated, and at least one screenshot or GIF. That way the repo is impressive after any milestone, not only at the end.
+Do them in order. Each one ends with the app deployed, the README updated, and at least one screenshot or GIF. That way the repo is impressive after any milestone, not only at the end. Each milestone lists its **Evidence** items. Core items count toward "done when".
 
 ### M0. Land the foundation and set up the repo
 
@@ -100,6 +126,10 @@ Do them in order. Each one ends with the app deployed, the README updated, and a
 - **Scope**: review and merge [PR #1](https://github.com/benweru/xmoney-kenya/pull/1). Move to the `api/` + `web/` layout (approved). Write the first ADRs: 001 integer cents and a double-entry ledger, 002 balances derived from postings, 003 a mock-first provider seam. Add a GitHub Project board with one issue per milestone item. Add pre-commit (ruff, mypy, `terraform fmt`/`tflint`) and branch protection on `main`. Add the README disclaimer about X Corp and sandbox-only. Apply the Terraform `foundation` stack: state bucket, Budgets alerts, ECR, and the GitHub OIDC role.
 - **Proves**: you can scope work and document decisions.
 - **Done when**: `main` is green, ADRs 001–003 exist, the board is public, Budgets alerts are live, and the README roadmap points here.
+- **Evidence** (published retroactively, alongside M2):
+  - *Core*: CI time badge or note. Target: the API job finishes in under 5 minutes on `main`. Published in the README.
+  - *Core*: an ADR index where every hard decision so far has an ADR (001–005 today). Published in `docs/adr/README.md`.
+  - *Core*: a PR-size note. Target: median PR under 400 changed lines, excluding lockfiles. Measured with `gh pr list --json additions,deletions` and published in `docs/evidence/hygiene.md`.
 
 ### M1. Money moves: top-up, send by @handle, sign-in
 
@@ -112,6 +142,11 @@ Do them in order. Each one ends with the app deployed, the README updated, and a
   - Transaction history with cursor pagination.
 - **Proves**: you understand async payment rails, idempotency, and concurrency, not just CRUD.
 - **Done when**: tests cover duplicate callbacks, out-of-order callbacks, dropped callbacks, and 100 concurrent sends from one wallet that never overdraw it. The ledger still balances after every test. One real sandbox STK Push has completed end to end.
+- **Evidence** (M1 is merging now, so these land as small follow-up PRs during M2):
+  - *Core*: **"we broke it on purpose" write-up** in `docs/evidence/correctness.md`. Gather the manual mutation checks already recorded in PRs #5–#8 (for example, removing the top-up row lock lets the concurrency test apply 10 callbacks instead of 1, and dropping the entry id from the history cursor makes the tie test lose entries). Re-run each one, then list the change, the test that failed, and the commit.
+  - *Core*: **property-based tests (Hypothesis)** for ledger invariants. Random sequences of top-ups, sends, and refusals keep the debits and credits of all postings equal, never make a wallet negative, and replaying any idempotency key never adds a posting. Target: 3 or more properties, each with at least 200 examples in CI. Results go in `correctness.md`.
+  - *Core*: **coverage per module** (pytest-cov) in the README and `docs/evidence/hygiene.md`. Target: at least 90% line coverage on `ledger/`, `transfers/`, and `payments/topups.py`, and at least 80% overall.
+  - *Stretch*: **mutation score** using mutmut on `ledger/service.py`, `transfers/service.py`, and `payments/topups.py`, run weekly or by hand rather than on every PR. Target: at least 70% of mutants killed on the ledger, and at least 60% on the others. Publish the surviving mutants that were judged equivalent.
 
 ### M2. The wallet app and a public demo on AWS
 
@@ -119,6 +154,12 @@ Do them in order. Each one ends with the app deployed, the README updated, and a
 - **Scope**: Next.js PWA with sign-up, sign-in, home balance, top-up (with a visible "waiting for M-PESA" state and a mock/sandbox rail switch), send by @handle with name confirmation, history, and the sandbox inbox. Mobile-first design with real empty, loading, and error states. Apply the Terraform `app` stack (VPC, RDS, ECS Fargate, ALB, S3 + CloudFront) and deploy the API, worker, web, and mock from GitHub Actions. Daraja sandbox callbacks point at the CloudFront URL. Open demo: per-IP and per-user rate limits, caps on demo top-up amounts, seed data, and a nightly reset via EventBridge Scheduler. Add Playwright tests for the main path, run in CI.
 - **Proves**: full-stack delivery, product sense, a typed API contract, and AWS infrastructure as code.
 - **Done when**: the live URL works on a phone, a sandbox top-up works from the live site, `make aws-sleep`/`aws-down` are tested, the README has the GIF, screenshots, and AWS diagram, and Playwright passes in CI.
+- **Critique follow-up (top finding from [m0-m1](critique/m0-m1.md))**: before the callback URL is public on CloudFront, stop crediting a wallet on the callback alone. A success callback marks the top-up "callback received". The wallet is credited only after an STK Query for that `CheckoutRequestID` confirms it. Under the mock, the query is instant. Add tests for a forged success callback with the correct token, which must credit nothing. Ship this as its own small PR after `aws-infra`. Do not fold it into the in-flight M2 branches.
+- **Evidence**:
+  - *Core*: **first load-test row** (see [Load-test history](#load-test-history)). Targets on the budget stack: at least 30 sends/s sustained, p95 under 300 ms, p99 under 800 ms, error rate under 0.5%, ledger drift 0. Published in the README (one line) and `docs/evidence/load-tests.md` (raw k6 summary).
+  - *Core*: **measured monthly cost**: the actual Cost Explorer figure while awake and asleep, compared with the Budgets alerts. Target: at most $25 for a month awake, and at most $3 for a month with the `app` stack destroyed. Published in `docs/evidence/cost.md` and the README.
+  - *Core*: **security scans in CI**: pip-audit (API), `npm audit --omit=dev` (web), Trivy on the built images, and gitleaks for secrets. Target: zero high or critical findings unfixed for more than 7 days, with each accepted finding listed and given a reason. Badges go in the README, and the latest report in `docs/evidence/security-scans.md`.
+  - *Stretch*: Playwright trace and Lighthouse mobile score for the wallet (target: performance at least 90 and accessibility at least 95) in `docs/evidence/web.md`.
 
 ### M3. Money correctness and the operations console
 
@@ -135,6 +176,13 @@ This is the milestone that sets the project apart. Prioritize it over everything
   - **Console v1**: user lookup, ledger explorer, reconciliation breaks, suspense queue, DLQ replay, and an audit log of every staff action.
 - **Proves**: the thing fintech teams worry about most. You can talk through failure modes in an interview.
 - **Done when**: a failure-injection test suite (callback dropped, duplicated, or late; worker killed mid-job; Daraja 500s) ends with zero unexplained differences. ADRs cover the outbox, reconciliation, and reversals. A runbook explains how to clear a suspense item.
+- **Critique follow-up (second finding)**: remove the global hot row. Every top-up locks the single `mpesa_float` account, and every balance read sums all of that account's postings. Do not lock system accounts that are allowed to go negative, and add a per-account running balance that a trigger maintains and the reconciler checks against the posting sum. Write an ADR. The M3 load-test row shows the before and after.
+- **Evidence**:
+  - *Core*: **chaos suite with counts**, scripted in `infra/chaos/` and run against compose in CI, plus once on AWS. Scenarios: kill the worker mid-payment (`docker kill` or ECS `StopTask`), drop, duplicate, and reorder STK callbacks and B2C results through a Toxiproxy-style proxy in front of the mock, and restart Postgres mid-run. Target: across at least 1,000 injected faults, every mismatch the reconciler finds is classified and repaired or sent to suspense, with 0 unexplained and drift 0. Publish a table of faults injected, mismatches detected, auto-repaired, and sent to suspense in `docs/evidence/chaos.md`.
+  - *Core*: **second load-test row**, with the hot-row fix. Target: at least 2× the M2 sends/s at the same p95, on the same hardware.
+  - *Core*: **mutation score extended** to the outbox worker and reconciler (targets as in M1). This is core here because these modules are the claim of the milestone.
+  - *Stretch*: **a 60-second demo video or GIF** of a chaos run. The worker is killed, callbacks are duplicated, and the console's reconciliation view ends at zero unexplained differences. Embed it in the README.
+  - *Stretch*: an RDS reboot with failover on AWS. Single-AZ cannot fail over, so this is a reboot. Measure the time to recover and the requests lost, then publish them honestly.
 
 ### M4. Risk and compliance
 
@@ -147,6 +195,16 @@ This is the milestone that sets the project apart. Prioritize it over everything
   - **Data Protection Act 2019** write-up and features: data minimization, field-level encryption for national ID numbers (KMS envelope encryption), a retention policy, and a data-subject export. Explain how you meet a "delete my data" request when ledger rows can never be deleted: pseudonymize the person, keep the money records.
 - **Proves**: domain depth that most candidates' projects have none of.
 - **Done when**: limits block over-limit transfers in tests, a seeded structuring scenario produces a case, and `docs/compliance.md` maps each feature to the law or rule it addresses.
+- **Evidence**:
+  - *Core*: **NPS Bill 2026 write-up** in `docs/evidence/nps-bill-2026.md`, two pages at most. What has been checked (13 Oct 2026): the [draft National Payment System Bill, 2026](https://www.centralbank.go.ke/2026/09/21/draft-national-payment-system-policy-and-national-payment-system-bill-2026/) was published by the National Treasury and CBK on 21 Sep 2026 for public comment, and comments closed on 9 Oct 2026. It is **a draft, not law**. It would repeal the National Payment System Act (Cap. 491A). Map only clauses that exist in the published text, and quote the section number:
+    - s.36–37: customer funds of an e-money issuer or e-wallet provider are held in a trust account, never less than what is owed to customers, and not commingled. In code: a reconciler check that the sum of wallet liabilities ≤ the `mpesa_float` and trust asset accounts, and separate ledger accounts for operating funds.
+    - s.48 and s.52: each payment carries information that identifies the originator and beneficiary, and records are retrievable without delay. In code: postings linked to transfers and top-ups with both parties, plus a regulator-style export.
+    - s.65: records are kept for seven years. In code: append-only ledger triggers, plus the retention policy and the pseudonymize-not-delete design in the Data Protection Act write-up.
+    - s.19: compliance with the Proceeds of Crime and Anti-Money Laundering Act. In code: sanctions screening and the case queue.
+    - Third Schedule: minimum capital. Mention it once as context: KES 50 million for an e-wallet provider and KES 250 million for an e-money issuer. It does not apply to the code.
+    - The published text has **no KYC tiers, no transaction or balance limits, and no maker-checker rule**. Say so. Source the KYC tier limits from the existing National Payment System Regulations 2014 and Safaricom's published M-PESA limits, and present maker-checker as an internal control rather than a rule from the bill. Re-check the text before publishing, because the bill may change after consultation.
+  - *Core*: **OWASP ASVS 4.0 Level 1 checklist** in `docs/evidence/asvs.md`, with each item marked pass, fail, or not applicable, and a link to the code or test. Target: at least 90% of applicable L1 items pass, and every fail has an issue.
+  - *Stretch*: ASVS Level 2 for the authentication (V2) and session (V3) chapters only.
 
 ### M5. Production readiness
 
@@ -154,6 +212,14 @@ This is the milestone that sets the project apart. Prioritize it over everything
 - **Scope**: harden the rate limiting from M2 (optional WAF rate-based rule on CloudFront). A callback IP allowlist (Safaricom publishes its callback IPs) plus a secret token in the callback URL. TOTP two-factor for console staff. Security headers and CSRF protection. OpenTelemetry traces across API, worker, and rail calls in X-Ray. Two or three SLOs (for example, 99% of P2P sends under 300 ms, and top-up callbacks applied within 5 s) with a CloudWatch dashboard and alarms. A k6 load test with results committed to the repo. Chaos tests using Toxiproxy (latency and dropped connections to Postgres and the rail). A STRIDE threat model. CI/CD: tests, then `terraform plan` on PRs, then production deploy on a tag, with database migrations as a gated ECS task. Optional exam exercise: document (or briefly enable) Multi-AZ RDS and ECS auto scaling, then turn them off.
 - **Proves**: you can run software, not only write it.
 - **Done when**: the README shows the k6 numbers and a dashboard screenshot, `docs/threat-model.md` lists each threat with its mitigation and a test, and deploys happen only from CI.
+- **Evidence**:
+  - *Core*: **SLOs with an error budget** in `docs/evidence/slos.md`. Two SLOs over a 28-day window: 99% of P2P sends under 300 ms at the API, and 99% of top-up callbacks applied within 5 s. Show the remaining budget on the CloudWatch dashboard. Be honest that a demo with little traffic makes the budget mostly synthetic: drive it with a scheduled k6 canary at about 1 request per minute, which costs pennies.
+  - *Core*: **dashboard and trace screenshots**: a CloudWatch dashboard and one X-Ray trace of a send through the API, worker, and rail. Put them in `docs/evidence/` and the README.
+  - *Core*: **STRIDE threat model**: at least 20 threats, each with a mitigation and a test or an accepted risk.
+  - *Core*: **on-call runbook** in `docs/runbooks/on-call.md`: alarms, first checks, and how to stop the bleeding (freeze sends, pause the worker).
+  - *Core*: **one real postmortem** in `docs/evidence/postmortem-001.md`, about a real defect found by chaos or load testing, in blameless format with a timeline, impact in shillings and requests, root cause, and follow-ups. If chaos finds nothing, say that, and write up the closest near miss instead. Never stage an incident.
+  - *Core*: **third load-test row** with tracing on, to show what instrumentation costs.
+  - *Stretch*: a load-test row with 2 API tasks, to show horizontal scaling. Note the cost.
 
 ### M6. Merchant platform (stretch, high signal)
 
@@ -161,6 +227,9 @@ This is the milestone that sets the project apart. Prioritize it over everything
 - **Scope**: merchant accounts. API keys stored hashed, with a visible prefix and scopes. A `POST /v1/payments` endpoint with an `Idempotency-Key` header. Webhooks signed with HMAC and a timestamp (like Stripe), with retries and a delivery log in the console. Lipa QR: a merchant shows a QR code and the PWA scans it and pays. Payment requests ("@amina requests KES 500") with accept or decline. A short developer docs page and a tiny sample "checkout" site in `examples/` that uses the API.
 - **Proves**: API design and developer experience, the work that Stripe-, Flutterwave-, and Paystack-style teams do.
 - **Done when**: the sample merchant takes a QR payment end to end on the live demo, and webhook signature verification has tests for good, tampered, and replayed requests.
+- **Evidence** (the whole milestone is stretch):
+  - *Stretch*: webhook delivery stats from a chaos run in which the merchant endpoint returns 500s, times out, and goes down for 10 minutes. Target: 100% delivered within the retry window, or sent to the DLQ with a visible reason. Published in `docs/evidence/webhooks.md`.
+  - *Stretch*: a load-test row for `POST /v1/payments` with `Idempotency-Key` replays mixed in. Target: replays add zero postings.
 
 ## Cut or defer
 
