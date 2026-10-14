@@ -89,7 +89,7 @@ def stk_callback(
     session: Session = Depends(get_db),
     rails: Rails = Depends(get_rails),
 ) -> dict[str, object]:
-    """Daraja's result callback. Duplicates and unknown ids are acknowledged and logged."""
+    """Daraja's result callback. A success is logged; STK Query must confirm before credit."""
     if not hmac.compare_digest(token, get_settings().stk_callback_token):
         raise HTTPException(status_code=404)
     handle_stk_callback(session, rails.any(), payload)

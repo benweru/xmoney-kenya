@@ -1,9 +1,11 @@
-"""STK Push top-ups: start, apply callbacks exactly once, and resolve silent pushes.
+"""STK Push top-ups: start, record callbacks, and credit only after STK Query.
 
 Rail calls never run inside a database transaction. Each state change locks
 the top-up row, so a callback, a duplicate of it, and an STK Query answer are
-applied one at a time and only the first final answer moves money. The wallet
-credit is posted in the same transaction as the status change.
+applied one at a time. A success callback is evidence that something arrived;
+the wallet is credited only when STK Query for that CheckoutRequestID says
+the payment succeeded. Failure callbacks still fail the top-up immediately.
+The wallet credit is posted in the same transaction as the status change.
 """
 
 from __future__ import annotations
@@ -144,7 +146,7 @@ def start_topup(
         raise
     except httpx.HTTPError as exc:
         raise ProviderError("M-PESA did not answer; retry with the same Idempotency-Key") from exc
-    return _view(_record_accepted(session, topup_id, accepted, now), replay=not created)
+    return _view(_record_accepted(session, provider, topup_id, accepted, now), replay=not created)
 
 
 def handle_stk_callback(
@@ -153,10 +155,11 @@ def handle_stk_callback(
     payload: Mapping[str, Any],
     now: datetime | None = None,
 ) -> CallbackDisposition:
-    """Record a callback and apply it if it is the first final answer for its top-up."""
+    """Log a callback. Credit the wallet only after STK Query confirms a success."""
     callback = provider.parse_stk_callback(payload)
     now = now or datetime.now(UTC)
     release_read_transaction(session)
+    topup_id: UUID | None = None
     with session.begin():
         topup = session.scalar(
             select(Topup)
@@ -170,15 +173,17 @@ def handle_stk_callback(
             receipt=callback.mpesa_receipt_number,
         )
         disposition = (
-            _apply(session, topup, result, now)
+            _ingest_callback(session, topup, result, now)
             if topup is not None
             else CallbackDisposition.UNMATCHED
         )
+        if topup is not None:
+            topup_id = topup.id
         session.add(
             StkCallbackLog(
                 id=uuid4(),
                 checkout_request_id=callback.checkout_request_id,
-                topup_id=topup.id if topup is not None else None,
+                topup_id=topup_id,
                 result_code=callback.result_code,
                 disposition=disposition.value,
                 payload=dict(payload),
@@ -188,6 +193,8 @@ def handle_stk_callback(
         logger.warning(
             "STK callback for unknown CheckoutRequestID %s", callback.checkout_request_id
         )
+    if disposition is CallbackDisposition.RECORDED and topup_id is not None:
+        _confirm_with_query(session, provider, topup_id, now)
     return disposition
 
 
@@ -233,10 +240,14 @@ def resolve_topup(
     provider: PaymentsProvider | None,
     topup_id: UUID,
     now: datetime | None = None,
+    *,
+    confirm: bool = False,
 ) -> Topup:
     """Ask the rail about a top-up waiting too long, and expire it once it is too old.
 
-    With no provider (its rail is no longer offered), the top-up can only expire.
+    A recorded success callback is confirmed immediately, without waiting for
+    STK_QUERY_AFTER_SECONDS. With no provider (its rail is no longer offered),
+    the top-up can only expire.
     """
     settings = get_settings()
     now = now or datetime.now(UTC)
@@ -246,21 +257,28 @@ def resolve_topup(
     age = now - topup.created_at
     status = TopupStatus(topup.status)
     checkout_request_id = topup.checkout_request_id
-    if status not in (TopupStatus.INITIATED, TopupStatus.PENDING):
+    recorded = _has_recorded_success(session, topup_id)
+    waiting = status in (TopupStatus.INITIATED, TopupStatus.PENDING)
+    if not waiting and not (status is TopupStatus.EXPIRED and recorded):
         return topup
-    if age < timedelta(seconds=settings.stk_query_after_seconds):
+    if not recorded and age < timedelta(seconds=settings.stk_query_after_seconds):
         return topup
-    give_up = age >= timedelta(seconds=settings.stk_expire_after_seconds)
+    give_up = (not recorded) and age >= timedelta(seconds=settings.stk_expire_after_seconds)
     recently_queried = topup.queried_at is not None and now - topup.queried_at < timedelta(
         seconds=settings.stk_query_interval_seconds
     )
-    if recently_queried and not give_up:
+    if recently_queried and not give_up and not confirm:
         return topup
     release_read_transaction(session)
 
     queried = False
     answer: RailResult | None = None
-    if status is TopupStatus.PENDING and checkout_request_id is not None and provider is not None:
+    can_query = (
+        checkout_request_id is not None
+        and provider is not None
+        and status in (TopupStatus.PENDING, TopupStatus.EXPIRED)
+    )
+    if can_query:
         queried = True
         try:
             query = provider.stk_query(checkout_request_id)
@@ -275,7 +293,10 @@ def resolve_topup(
     with session.begin():
         locked = session.scalar(select(Topup).where(Topup.id == topup_id).with_for_update())
         assert locked is not None
-        if TopupStatus(locked.status) in (TopupStatus.INITIATED, TopupStatus.PENDING):
+        locked_status = TopupStatus(locked.status)
+        if locked_status in (TopupStatus.INITIATED, TopupStatus.PENDING) or (
+            locked_status is TopupStatus.EXPIRED and recorded
+        ):
             if queried:
                 locked.queried_at = now
             if answer is not None:
@@ -285,6 +306,13 @@ def resolve_topup(
                 locked.result_desc = "No answer from M-PESA before the top-up expired"
     session.refresh(locked)
     return locked
+
+
+def _confirm_with_query(
+    session: Session, provider: PaymentsProvider, topup_id: UUID, now: datetime
+) -> None:
+    """Confirm a recorded success callback with STK Query. Rail call is outside a txn."""
+    resolve_topup(session, provider, topup_id, now=now, confirm=True)
 
 
 def _create_or_replay(
@@ -333,24 +361,31 @@ def _create_or_replay(
 
 
 def _record_accepted(
-    session: Session, topup_id: UUID, accepted: StkPushAccepted, now: datetime
+    session: Session,
+    provider: PaymentsProvider,
+    topup_id: UUID,
+    accepted: StkPushAccepted,
+    now: datetime,
 ) -> Topup:
     release_read_transaction(session)
     with session.begin():
         topup = session.scalar(select(Topup).where(Topup.id == topup_id).with_for_update())
         assert topup is not None
+        recorded_early = False
         if topup.status == TopupStatus.INITIATED:
             topup.merchant_request_id = accepted.merchant_request_id
             topup.checkout_request_id = accepted.checkout_request_id
             transition(topup, TopupStatus.PENDING, now)
             session.flush()
-            _apply_early_callback(session, topup, now)
+            recorded_early = _apply_early_callback(session, topup, now)
     session.refresh(topup)
+    if recorded_early:
+        _confirm_with_query(session, provider, topup.id, now)
     return topup
 
 
-def _apply_early_callback(session: Session, topup: Topup, now: datetime) -> None:
-    """A callback can beat the push response here. Apply it now that the id is known."""
+def _apply_early_callback(session: Session, topup: Topup, now: datetime) -> bool:
+    """A callback can beat the push response here. Record it now that the id is known."""
     early = session.scalars(
         select(StkCallbackLog)
         .where(
@@ -360,10 +395,13 @@ def _apply_early_callback(session: Session, topup: Topup, now: datetime) -> None
         .order_by(StkCallbackLog.received_at, StkCallbackLog.id)
         .with_for_update()
     ).all()
+    recorded = False
     for log in early:
         callback = _parse_logged(log)
         log.topup_id = topup.id
-        log.disposition = _apply(session, topup, callback, now).value
+        log.disposition = _ingest_callback(session, topup, callback, now).value
+        recorded = recorded or log.disposition == CallbackDisposition.RECORDED.value
+    return recorded
 
 
 def _record_refusal(session: Session, topup_id: UUID, reason: str, now: datetime) -> Topup:
@@ -376,6 +414,43 @@ def _record_refusal(session: Session, topup_id: UUID, reason: str, now: datetime
             topup.result_desc = reason[:300]
     session.refresh(topup)
     return topup
+
+
+def _has_recorded_success(session: Session, topup_id: UUID) -> bool:
+    found = session.scalar(
+        select(StkCallbackLog.id)
+        .where(
+            StkCallbackLog.topup_id == topup_id,
+            StkCallbackLog.disposition == CallbackDisposition.RECORDED.value,
+            StkCallbackLog.result_code == 0,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
+def _ingest_callback(
+    session: Session, topup: Topup, result: RailResult, now: datetime
+) -> CallbackDisposition:
+    """Handle one callback. Success is recorded; only a failure or a later query credits."""
+    status = TopupStatus(topup.status)
+    if status in FINAL:
+        if result.succeeded != (status is TopupStatus.SUCCEEDED):
+            return CallbackDisposition.CONFLICT
+        if result.receipt and topup.mpesa_receipt_number is None:
+            topup.mpesa_receipt_number = result.receipt
+        return CallbackDisposition.DUPLICATE
+    if result.succeeded and result.amount_cents not in (None, topup.amount_cents):
+        return CallbackDisposition.AMOUNT_MISMATCH
+    if not result.succeeded:
+        return _apply(session, topup, result, now)
+    if _has_recorded_success(session, topup.id):
+        if result.receipt and topup.mpesa_receipt_number is None:
+            topup.mpesa_receipt_number = result.receipt
+        return CallbackDisposition.DUPLICATE
+    if result.receipt:
+        topup.mpesa_receipt_number = result.receipt
+    return CallbackDisposition.RECORDED
 
 
 def _apply(
@@ -410,7 +485,8 @@ def _apply(
         ),
     )
     topup.journal_entry_id = posted.entry_id
-    topup.mpesa_receipt_number = result.receipt
+    if result.receipt:
+        topup.mpesa_receipt_number = result.receipt
     transition(topup, TopupStatus.SUCCEEDED, now)
     return CallbackDisposition.APPLIED
 

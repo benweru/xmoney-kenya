@@ -35,6 +35,7 @@ class TopupStatus(StrEnum):
 
 class CallbackDisposition(StrEnum):
     APPLIED = "applied"
+    RECORDED = "recorded"
     DUPLICATE = "duplicate"
     CONFLICT = "conflict"
     AMOUNT_MISMATCH = "amount_mismatch"
@@ -108,7 +109,8 @@ class StkCallbackLog(Base):
     __tablename__ = "stk_callbacks"
     __table_args__ = (
         CheckConstraint(
-            "disposition IN ('applied', 'duplicate', 'conflict', 'amount_mismatch', 'unmatched')",
+            "disposition IN ("
+            "'applied', 'duplicate', 'conflict', 'amount_mismatch', 'unmatched', 'recorded')",
             name="ck_stk_callbacks_disposition",
         ),
         Index("ix_stk_callbacks_checkout_request_id", "checkout_request_id"),

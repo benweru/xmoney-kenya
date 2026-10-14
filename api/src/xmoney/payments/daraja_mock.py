@@ -5,7 +5,8 @@ pytest, so this process speaks the STK endpoints itself. Outcomes are chosen
 by the last three digits of the MSISDN, or by PUT /__control/behavior for every
 other number. STK Query reports "still processing" until the configured delay
 has passed, then the same outcome the callback carried, even when the
-callback was dropped. The public demo turns the control route off with
+callback was dropped. The default delay is 0 ms, so a query used to confirm
+a callback is instant in tests and the local UI. The public demo turns the control route off with
 DARAJA_MOCK_CONTROL_ENABLED=false, so one visitor cannot change outcomes for
 everyone; the suffix rules still apply.
 

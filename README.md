@@ -152,7 +152,7 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 `POST /v1/topups` (signed in, with an `Idempotency-Key` header) sends an STK Push for `amount_cents` to the user's phone, or to `phone` if given. M-PESA collects whole shillings, so the amount must be a multiple of 100 cents, up to KES 250,000. The response is `pending`. Poll `GET /v1/topups/{id}` until it is `succeeded`, `failed`, or `expired`.
 
 - Daraja's callback goes to `/v1/payments/stk/callback/{token}`. Only the first final answer for a `CheckoutRequestID` changes anything. The status change and the wallet credit (debit `system:mpesa_float`, credit the wallet) commit in one transaction. Every callback, including duplicates, is kept in `stk_callbacks`.
-- A callback that arrives before the push response has been saved is applied as soon as it is.
+- A callback that arrives before the push response has been saved is recorded as soon as the id is known, then confirmed with STK Query.
 - If no callback has come after `STK_QUERY_AFTER_SECONDS` (60), reading the top-up asks Daraja's STK Query API, at most every 15 seconds. `make resolve-topups` does the same for every waiting top-up. After `STK_EXPIRE_AFTER_SECONDS` (300) with no answer, the top-up is `expired`. A late "paid" callback still credits it.
 - Replaying an `Idempotency-Key` returns the same top-up. Reusing it for a different amount is a 409.
 - Postgres enforces the allowed transitions, so `succeeded` can never go back to `pending`.
@@ -320,7 +320,7 @@ Coverage that matters for a ledger:
 - Open demo: the journal route is 404 by default and cannot be enabled behind `https`; registration, sign-in, and top-ups are refused past their limits; failed attempts count; forged `X-Forwarded-For` addresses do not get a fresh bucket.
 - Rails: each top-up is queried on the rail that took it; a rail that is no longer offered still expires; the sandbox rail refuses placeholder keys, and on a public URL it refuses to start without a phone allowlist.
 - Demo seed and reset: the seed goes through the real top-up and transfer code, runs once, and leaves no PIN; reset removes visitors and restores the seed.
-- Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a callback that beats the push response is applied; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, and forged (wrong token) callbacks move no money; Postgres rejects illegal transitions.
+- Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a success callback is recorded and the wallet is credited only after STK Query confirms; a callback that beats the push response is confirmed the same way; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, forged (wrong token), and forged success (correct token, query not paid) callbacks move no money; Postgres rejects illegal transitions.
 
 ## The AWS demo
 

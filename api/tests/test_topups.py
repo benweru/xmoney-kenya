@@ -23,7 +23,7 @@ from xmoney.ledger.models import JournalEntry
 from xmoney.ledger.service import get_balance
 from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import DarajaHttpProvider, parse_stk_callback
-from xmoney.payments.daraja_mock import Behavior, DarajaMockState, create_daraja_mock_app
+from xmoney.payments.daraja_mock import DarajaMockState, create_daraja_mock_app
 from xmoney.payments.deps import Rails
 from xmoney.payments.models import StkCallbackLog, Topup, TopupStatus
 from xmoney.payments.provider import (
@@ -83,7 +83,13 @@ class ScriptedRail:
 
     def __init__(self) -> None:
         self.push_error: Exception | None = None
-        self.query_result: StkQueryResult | None = None
+        self.query_result: StkQueryResult | None = StkQueryResult(
+            checkout_request_id="",
+            processing=False,
+            result_code=0,
+            result_desc="The service request is processed successfully.",
+            outcome=None,
+        )
         self.before_push_returns: Callable[[StkPushAccepted], None] | None = None
         self.pushes = 0
         self.queries = 0
@@ -109,7 +115,13 @@ class ScriptedRail:
     def stk_query(self, checkout_request_id: str) -> StkQueryResult:
         self.queries += 1
         assert self.query_result is not None
-        return self.query_result
+        return StkQueryResult(
+            checkout_request_id=checkout_request_id,
+            processing=self.query_result.processing,
+            result_code=self.query_result.result_code,
+            result_desc=self.query_result.result_desc,
+            outcome=self.query_result.outcome,
+        )
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
@@ -251,7 +263,7 @@ def test_duplicate_callbacks_apply_once(db: Session, rail) -> None:
     [attempt] = state.attempts
     for _ in range(3):
         handle_stk_callback(db, provider, attempt.payload)
-    assert _dispositions(db) == ["applied", "duplicate", "duplicate"]
+    assert _dispositions(db) == ["recorded", "duplicate", "duplicate"]
     assert _wallet(db, user) == AMOUNT
     assert _entries(db) == 1
     topup = db.get(Topup, view.id)
@@ -274,7 +286,7 @@ def test_concurrent_duplicate_callbacks_apply_once(engine, rail) -> None:
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(deliver, range(workers)))
-    assert results.count("applied") == 1
+    assert results.count("recorded") == 1
     assert results.count("duplicate") == workers - 1
     with Session(engine) as session:
         assert _wallet(session, user) == AMOUNT
@@ -319,19 +331,20 @@ def test_a_dropped_callback_is_recovered_with_stk_query(db: Session, rail) -> No
     assert _wallet(db, user) == AMOUNT
 
 
-def test_a_silent_push_expires_and_a_late_success_still_credits(db: Session, rail) -> None:
-    state, provider = rail
-    state.default_behavior = Behavior(delay_ms=10_000, drop_callback=True)
+def test_a_silent_push_expires_and_a_late_success_still_credits(db: Session) -> None:
+    rail = ScriptedRail()
+    rail.query_result = StkQueryResult("x", True, None, "busy", None)
     user = _user(db)
-    view = _start(db, provider, user)
+    view = _start(db, rail, user)
+    assert view.checkout_request_id is not None
 
-    assert resolve_topup(db, provider, view.id, now=_later(db, view.id, 61)).status == "pending"
-    expired = resolve_topup(db, provider, view.id, now=_later(db, view.id, 301))
+    assert resolve_topup(db, rail, view.id, now=_later(db, view.id, 61)).status == "pending"
+    expired = resolve_topup(db, rail, view.id, now=_later(db, view.id, 301))
     assert expired.status == "expired"
     assert _wallet(db, user) == 0
 
-    [attempt] = state.attempts
-    assert handle_stk_callback(db, provider, attempt.payload).value == "applied"
+    rail.query_result = StkQueryResult(view.checkout_request_id, False, 0, "paid", None)
+    assert handle_stk_callback(db, rail, _callback(view.checkout_request_id)).value == "recorded"
     topup = db.get(Topup, view.id, populate_existing=True)
     assert topup is not None and topup.status == "succeeded"
     assert _wallet(db, user) == AMOUNT
@@ -350,7 +363,7 @@ def test_a_callback_that_beats_the_push_response_is_applied(db: Session, engine)
     view = _start(db, rail, user)
     assert view.status is TopupStatus.SUCCEEDED
     assert view.mpesa_receipt_number == "SBOXTEST0001"
-    assert _dispositions(db) == ["applied"]
+    assert _dispositions(db) == ["recorded"]
     assert _wallet(db, user) == AMOUNT
 
 
@@ -390,6 +403,43 @@ def test_an_unknown_callback_is_acknowledged_and_logged(api: TestClient) -> None
     assert ack.json()["ResultCode"] == 0
     bad = api.post(_callback_path(), json={"Body": {}})
     assert bad.status_code == 422
+
+
+def test_a_forged_success_callback_over_http_credits_nothing(
+    api: TestClient, rail, sign_up
+) -> None:
+    me = sign_up("amina", "+254712345032")
+    created = api.post(
+        "/v1/topups", json={"amount_cents": AMOUNT}, headers={"Idempotency-Key": "k1"}
+    )
+    assert created.status_code == 201, created.text
+    topup = created.json()
+    forged = _callback(topup["checkout_request_id"])
+    ack = api.post(_callback_path(), json=forged)
+    assert ack.status_code == 200
+    done = api.get(f"/v1/topups/{topup['id']}").json()
+    assert done["status"] != "succeeded"
+    balance = api.get(f"/v1/accounts/{me['wallet_account_id']}/balance").json()
+    assert balance["balance_cents"] == 0
+
+
+def test_a_forged_success_callback_with_the_correct_token_credits_nothing(
+    db: Session,
+) -> None:
+    rail = ScriptedRail()
+    rail.query_result = StkQueryResult("x", True, None, "The transaction is being processed", None)
+    user = _user(db)
+    view = _start(db, rail, user)
+    assert view.checkout_request_id is not None
+    queries_before = rail.queries
+    assert handle_stk_callback(db, rail, _callback(view.checkout_request_id)).value == "recorded"
+    assert rail.queries == queries_before + 1
+    topup = db.get(Topup, view.id, populate_existing=True)
+    assert topup is not None
+    assert topup.status == "pending"
+    assert topup.journal_entry_id is None
+    assert _wallet(db, user) == 0
+    assert _entries(db) == 0
 
 
 def test_a_callback_without_the_secret_token_is_ignored(api: TestClient, rail, sign_up) -> None:
@@ -496,7 +546,7 @@ def test_resolve_stale_topups_sweeps_only_waiting_ones(db: Session) -> None:
     handle_stk_callback(db, rail, _callback(done.checkout_request_id))
     rail.query_result = StkQueryResult(waiting.checkout_request_id or "", False, 1032, "no", None)
     assert resolve_stale_topups(db, Rails.of(rail), now=_later(db, waiting.id, 61)) == 1
-    assert rail.queries == 1
+    assert rail.queries == 2
     topup = db.get(Topup, waiting.id, populate_existing=True)
     assert topup is not None and topup.status == "failed"
 
