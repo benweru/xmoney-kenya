@@ -273,12 +273,11 @@ def resolve_topup(
 
     queried = False
     answer: RailResult | None = None
-    can_query = (
+    if (
         checkout_request_id is not None
         and provider is not None
         and status in (TopupStatus.PENDING, TopupStatus.EXPIRED)
-    )
-    if can_query:
+    ):
         queried = True
         try:
             query = provider.stk_query(checkout_request_id)
