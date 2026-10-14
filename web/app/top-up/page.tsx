@@ -5,8 +5,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { SignedInShell, useSignedInUser } from "@/components/app-shell";
 import { CheckIcon, CrossIcon, PhoneIcon } from "@/components/icons";
 import { Alert, Button, ButtonLink, Card, Field, Input, PageTitle, cx } from "@/components/ui";
-import type { Topup } from "@/lib/api/client";
-import { newIdempotencyKey, useStartTopup, useTopupStatus } from "@/lib/api/hooks";
+import type { Rail, Rails, Topup } from "@/lib/api/client";
+import { newIdempotencyKey, useRails, useStartTopup, useTopupStatus } from "@/lib/api/hooks";
 import { formatKes, formatPhone, normalizeKenyanPhone, parseKesToCents } from "@/lib/format";
 
 const PRESETS = [100, 500, 1000] as const;
@@ -22,6 +22,8 @@ export default function TopUpPage() {
 function TopUp() {
   const me = useSignedInUser();
   const start = useStartTopup();
+  const rails = useRails();
+  const [chosenRail, setChosenRail] = useState<Rail | null>(null);
   const [amount, setAmount] = useState("500");
   const [otherPhone, setOtherPhone] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
@@ -33,6 +35,7 @@ function TopUp() {
     touched && (cents === null || cents % 100 !== 0) ? "Enter a whole number of shillings." : null;
   const phone = otherPhone === null ? me.phone : normalizeKenyanPhone(otherPhone);
   const phoneError = touched && !phone ? "Enter a Kenyan mobile number." : null;
+  const rail = chosenRail ?? (rails.data?.default as Rail | undefined) ?? "mock";
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -40,7 +43,7 @@ function TopUp() {
     if (cents === null || cents % 100 !== 0 || !phone) return;
     key.current ??= newIdempotencyKey("topup");
     start.mutate(
-      { amount_cents: cents, phone, idempotencyKey: key.current },
+      { amount_cents: cents, phone, rail, idempotencyKey: key.current },
       {
         onSuccess: (topup) => {
           key.current = null;
@@ -108,6 +111,17 @@ function TopUp() {
           </div>
         </Card>
 
+        {rails.data && rails.data.rails.length > 1 && (
+          <RailPicker
+            rails={rails.data}
+            value={rail}
+            onChange={(next) => {
+              setChosenRail(next);
+              changed();
+            }}
+          />
+        )}
+
         <Card className="flex flex-col gap-3">
           {otherPhone === null ? (
             <div className="flex items-center justify-between gap-3">
@@ -116,7 +130,7 @@ function TopUp() {
                   <PhoneIcon className="size-5" />
                 </span>
                 <span className="flex min-w-0 flex-col">
-                  <span className="text-xs text-muted">M-PESA number</span>
+                  <span className="text-xs whitespace-nowrap text-muted">M-PESA number</span>
                   <span className="font-medium whitespace-nowrap">{formatPhone(me.phone)}</span>
                 </span>
               </div>
@@ -135,11 +149,15 @@ function TopUp() {
               htmlFor="phone"
               error={phoneError}
               hint={
-                <>
-                  Mock outcomes: <span className="font-mono">…000</span> pays,{" "}
-                  <span className="font-mono">…032</span> is cancelled,{" "}
-                  <span className="font-mono">…001</span> has no funds.
-                </>
+                rail === "mock" ? (
+                  <>
+                    Mock outcomes: <span className="font-mono">…000</span> pays,{" "}
+                    <span className="font-mono">…032</span> is cancelled,{" "}
+                    <span className="font-mono">…001</span> has no funds.
+                  </>
+                ) : (
+                  "The Daraja sandbox sends a real prompt to this handset. No money moves."
+                )
               }
             >
               <Input
@@ -164,6 +182,52 @@ function TopUp() {
         </Button>
       </form>
     </>
+  );
+}
+
+function RailPicker({
+  rails,
+  value,
+  onChange,
+}: {
+  rails: Rails;
+  value: Rail;
+  onChange: (rail: Rail) => void;
+}) {
+  const selected = rails.rails.find((r) => r.name === value);
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="mb-2 text-sm font-medium">Payment rail</legend>
+      <div className="grid grid-cols-2 gap-1 rounded-full border border-line bg-white p-1">
+        {rails.rails.map((option) => (
+          <label
+            key={option.name}
+            className={cx(
+              "flex h-10 cursor-pointer items-center justify-center rounded-full text-sm font-semibold",
+              "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-brand",
+              option.name === value ? "bg-brand text-white" : "text-muted hover:text-ink",
+            )}
+          >
+            <input
+              type="radio"
+              name="rail"
+              value={option.name}
+              checked={option.name === value}
+              onChange={() => onChange(option.name as Rail)}
+              className="sr-only"
+            />
+            {option.name === "mock" ? "Mock" : "Daraja sandbox"}
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-muted">
+        {value === "mock"
+          ? "The built-in Daraja mock answers instantly. Outcomes follow the phone's last digits."
+          : selected?.restricted
+            ? "Safaricom's sandbox. Limited to the demo owner's test phones, so most visitors should use the mock."
+            : "Safaricom's sandbox sends a real STK prompt to the handset. No money moves."}
+      </p>
+    </fieldset>
   );
 }
 
@@ -256,8 +320,10 @@ function Waiting({ topup }: { topup: Topup | undefined }) {
         Waiting for M-PESA · {seconds}s
       </p>
       <p className="max-w-xs text-xs text-muted">
-        On the mock, the prompt is approved for you. If a callback goes missing, we ask M-PESA
-        directly after a minute.
+        {topup?.rail === "sandbox"
+          ? "This prompt comes from the Safaricom Daraja sandbox. No money moves."
+          : "On the mock, the prompt is approved for you."}{" "}
+        If a callback goes missing, we ask M-PESA directly after a minute.
       </p>
     </section>
   );

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars (gitignored).
+# Unset, new task definitions use the most recently pushed image. `make aws-up TAG=<sha>` pins one.
+# api_image_tag = "<git sha>"
+
+# Offer Safaricom's Daraja sandbox next to the mock. Fill the foundation's
+# xmoney-demo/daraja-sandbox secret first (docs/runbooks/aws-first-deploy.md).
+enable_sandbox_rail    = false
+sandbox_allowed_phones = [] # ["+2547XXXXXXXX"], your own test handset
+
+# topup_max_kes           = 1000
+# resolve_topups_schedule = "rate(10 minutes)"
+# demo_reset_schedule     = "cron(0 3 * * ? *)" # Africa/Nairobi

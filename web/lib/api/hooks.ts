@@ -8,7 +8,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-import { api, ApiError, newIdempotencyKey, unwrap, type Me, type Topup } from "./client";
+import { api, ApiError, newIdempotencyKey, unwrap, type Me, type Rail, type Topup } from "./client";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -21,6 +21,7 @@ export const keys = {
   balance: ["balance"] as const,
   history: ["history"] as const,
   topup: (id: string) => ["topup", id] as const,
+  rails: ["rails"] as const,
   inbox: (phone: string) => ["inbox", phone] as const,
 };
 
@@ -146,11 +147,21 @@ export function useStartTopup() {
     }: {
       amount_cents: number;
       phone?: string | null;
+      rail?: Rail;
       idempotencyKey: string;
     }) =>
       unwrap(
         api.POST("/v1/topups", { body, params: { header: { "Idempotency-Key": idempotencyKey } } }),
       ),
+  });
+}
+
+/** The rails this deployment offers for top-ups, default first. */
+export function useRails() {
+  return useQuery({
+    queryKey: keys.rails,
+    queryFn: () => unwrap(api.GET("/v1/payment-rails")),
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -24,6 +24,7 @@ from xmoney.ledger.service import get_balance
 from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import DarajaHttpProvider, parse_stk_callback
 from xmoney.payments.daraja_mock import Behavior, DarajaMockState, create_daraja_mock_app
+from xmoney.payments.deps import Rails
 from xmoney.payments.models import StkCallbackLog, Topup, TopupStatus
 from xmoney.payments.provider import (
     AccessToken,
@@ -69,9 +70,9 @@ def rail() -> Iterator[tuple[DarajaMockState, DarajaHttpProvider]]:
 @pytest.fixture
 def api(client: TestClient, rail: tuple[DarajaMockState, DarajaHttpProvider]) -> TestClient:
     from xmoney.main import app
-    from xmoney.payments.deps import get_payments_provider
+    from xmoney.payments.deps import get_rails
 
-    app.dependency_overrides[get_payments_provider] = lambda: rail[1]
+    app.dependency_overrides[get_rails] = lambda: Rails.of(rail[1])
     return client
 
 
@@ -494,7 +495,7 @@ def test_resolve_stale_topups_sweeps_only_waiting_ones(db: Session) -> None:
     assert done.checkout_request_id is not None
     handle_stk_callback(db, rail, _callback(done.checkout_request_id))
     rail.query_result = StkQueryResult(waiting.checkout_request_id or "", False, 1032, "no", None)
-    assert resolve_stale_topups(db, rail, now=_later(db, waiting.id, 61)) == 1
+    assert resolve_stale_topups(db, Rails.of(rail), now=_later(db, waiting.id, 61)) == 1
     assert rail.queries == 1
     topup = db.get(Topup, waiting.id, populate_existing=True)
     assert topup is not None and topup.status == "failed"

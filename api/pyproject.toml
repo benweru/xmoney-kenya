@@ -38,6 +38,7 @@ dev = [
 [project.scripts]
 xmoney = "xmoney.main:main"
 xmoney-resolve-topups = "xmoney.payments.resolve:main"
+xmoney-demo = "xmoney.demo:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

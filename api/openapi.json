@@ -427,6 +427,51 @@
         "title": "PostingOut",
         "type": "object"
       },
+      "RailOut": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "restricted": {
+            "description": "Only the demo owner's test phones can use it.",
+            "title": "Restricted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "restricted"
+        ],
+        "title": "RailOut",
+        "type": "object"
+      },
+      "RailsOut": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "string"
+          },
+          "rails": {
+            "items": {
+              "$ref": "#/components/schemas/RailOut"
+            },
+            "title": "Rails",
+            "type": "array"
+          }
+        },
+        "required": [
+          "default",
+          "rails"
+        ],
+        "title": "RailsOut",
+        "type": "object"
+      },
       "RegisterIn": {
         "additionalProperties": false,
         "properties": {
@@ -608,6 +653,22 @@
               "+254708374149"
             ],
             "title": "Phone"
+          },
+          "rail": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mock",
+                  "sandbox"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rail for the STK Push. Defaults to GET /v1/payment-rails `default`.",
+            "title": "Rail"
           }
         },
         "required": [
@@ -662,6 +723,10 @@
             "title": "Phone",
             "type": "string"
           },
+          "rail": {
+            "title": "Rail",
+            "type": "string"
+          },
           "resolved_at": {
             "anyOf": [
               {
@@ -704,6 +769,7 @@
         "required": [
           "id",
           "status",
+          "rail",
           "amount_cents",
           "phone",
           "checkout_request_id",
@@ -1415,6 +1481,28 @@
         "summary": "List My Transactions",
         "tags": [
           "history"
+        ]
+      }
+    },
+    "/v1/payment-rails": {
+      "get": {
+        "description": "The rails a top-up can use here, default first.",
+        "operationId": "list_rails_v1_payment_rails_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RailsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Rails",
+        "tags": [
+          "top-ups"
         ]
       }
     },

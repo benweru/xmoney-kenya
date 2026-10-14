@@ -71,6 +71,11 @@ class InvalidPaymentRequest(XMoneyError):
     http_status = 422
 
 
+class RailUnavailable(XMoneyError):
+    code = "rail_unavailable"
+    http_status = 422
+
+
 class CallbackParseError(XMoneyError):
     code = "callback_parse_error"
     http_status = 422

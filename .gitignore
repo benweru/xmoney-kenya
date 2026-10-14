@@ -15,3 +15,11 @@ build/
 *.log
 node_modules/
 .next/
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+infra/terraform/backend.hcl
+infra/terraform/*/terraform.tfvars

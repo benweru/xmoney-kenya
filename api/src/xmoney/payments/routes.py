@@ -14,9 +14,9 @@ from xmoney.auth.deps import current_user
 from xmoney.auth.service import SessionUser
 from xmoney.config import get_settings
 from xmoney.db import get_db
-from xmoney.payments.deps import get_payments_provider
-from xmoney.payments.provider import PaymentsProvider
-from xmoney.payments.schemas import TopupIn, TopupOut
+from xmoney.identity.validators import normalize_phone
+from xmoney.payments.deps import RAIL_LABELS, Rails, get_rails
+from xmoney.payments.schemas import RailOut, RailsOut, TopupIn, TopupOut
 from xmoney.payments.topups import get_topup, handle_stk_callback, start_topup
 from xmoney.ratelimit.deps import limit_by_user
 from xmoney.ratelimit.service import START_TOPUP
@@ -36,15 +36,16 @@ def create_topup(
     idempotency_key: str = Header(alias="Idempotency-Key"),
     user: SessionUser = Depends(current_user),
     session: Session = Depends(get_db),
-    provider: PaymentsProvider = Depends(get_payments_provider),
+    rails: Rails = Depends(get_rails),
 ) -> JSONResponse:
     """Send an STK Push to the phone. Poll GET /v1/topups/{id} for the result."""
+    phone = normalize_phone(body.phone or user.phone_e164)
     view = start_topup(
         session,
-        provider,
+        rails.for_new_topup(body.rail, phone),
         user_id=user.user_id,
         wallet_account_id=user.wallet_account_id,
-        phone=body.phone or user.phone_e164,
+        phone=phone,
         amount_cents=body.amount_cents,
         idempotency_key=idempotency_key,
     )
@@ -59,10 +60,26 @@ def read_topup(
     topup_id: UUID,
     user: SessionUser = Depends(current_user),
     session: Session = Depends(get_db),
-    provider: PaymentsProvider = Depends(get_payments_provider),
+    rails: Rails = Depends(get_rails),
 ) -> TopupOut:
     """Current state. A top-up with no callback yet is checked with STK Query first."""
-    return TopupOut.of(get_topup(session, provider, topup_id=topup_id, user_id=user.user_id))
+    return TopupOut.of(get_topup(session, rails, topup_id=topup_id, user_id=user.user_id))
+
+
+@router.get("/payment-rails", response_model=RailsOut)
+def list_rails(rails: Rails = Depends(get_rails)) -> RailsOut:
+    """The rails a top-up can use here, default first."""
+    return RailsOut(
+        default=rails.default,
+        rails=[
+            RailOut(
+                name=name,
+                label=RAIL_LABELS.get(name, name),
+                restricted=name == "sandbox" and bool(rails.sandbox_phones),
+            )
+            for name in rails.names
+        ],
+    )
 
 
 @router.post("/payments/stk/callback/{token}")
@@ -70,10 +87,10 @@ def stk_callback(
     token: str,
     payload: dict[str, Any] = Body(...),
     session: Session = Depends(get_db),
-    provider: PaymentsProvider = Depends(get_payments_provider),
+    rails: Rails = Depends(get_rails),
 ) -> dict[str, object]:
     """Daraja's result callback. Duplicates and unknown ids are acknowledged and logged."""
     if not hmac.compare_digest(token, get_settings().stk_callback_token):
         raise HTTPException(status_code=404)
-    handle_stk_callback(session, provider, payload)
+    handle_stk_callback(session, rails.any(), payload)
     return {"ResultCode": 0, "ResultDesc": "Accepted"}

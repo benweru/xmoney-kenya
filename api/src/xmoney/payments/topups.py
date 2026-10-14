@@ -42,6 +42,7 @@ from xmoney.ledger.money import (
 from xmoney.ledger.service import post_entry_in_transaction
 from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import parse_stk_callback
+from xmoney.payments.deps import Rails
 from xmoney.payments.models import CallbackDisposition, StkCallbackLog, Topup, TopupStatus
 from xmoney.payments.provider import PaymentsProvider, StkPushAccepted, StkPushRequest
 from xmoney.payments.state import FINAL, transition
@@ -58,6 +59,7 @@ _DESCRIPTION = "Wallet topup"
 class TopupView:
     id: UUID
     status: TopupStatus
+    rail: str
     amount_cents: int
     phone_e164: str
     checkout_request_id: str | None
@@ -83,13 +85,12 @@ class RailResult:
         return self.result_code == 0
 
 
-def callback_url() -> str:
+def callback_url(rail: str | None = None) -> str:
     settings = get_settings()
-    return (
-        settings.public_base_url.rstrip("/")
-        + "/v1/payments/stk/callback/"
-        + settings.stk_callback_token
-    )
+    base = settings.public_base_url
+    if rail == "mock" and settings.daraja_mock_callback_base_url:
+        base = settings.daraja_mock_callback_base_url
+    return base.rstrip("/") + "/v1/payments/stk/callback/" + settings.stk_callback_token
 
 
 def start_topup(
@@ -133,7 +134,7 @@ def start_topup(
                 phone_e164=phone_e164,
                 account_reference=_ACCOUNT_REFERENCE,
                 description=_DESCRIPTION,
-                callback_url=callback_url(),
+                callback_url=callback_url(provider.name),
                 idempotency_key=f"topup:{topup_id}",
             )
         )
@@ -192,7 +193,7 @@ def handle_stk_callback(
 
 def get_topup(
     session: Session,
-    provider: PaymentsProvider,
+    rails: Rails,
     *,
     topup_id: UUID,
     user_id: UUID,
@@ -202,12 +203,11 @@ def get_topup(
     topup = session.get(Topup, topup_id)
     if topup is None or topup.user_id != user_id:
         raise TopupNotFound("no such top-up")
+    provider = rails.for_topup(topup.provider)
     return _view(resolve_topup(session, provider, topup_id, now=now))
 
 
-def resolve_stale_topups(
-    session: Session, provider: PaymentsProvider, now: datetime | None = None
-) -> int:
+def resolve_stale_topups(session: Session, rails: Rails, now: datetime | None = None) -> int:
     """Run STK Query for every top-up that is waiting too long. Returns how many changed."""
     now = now or datetime.now(UTC)
     cutoff = now - timedelta(seconds=get_settings().stk_query_after_seconds)
@@ -220,15 +220,24 @@ def resolve_stale_topups(
     changed = 0
     for topup_id in ids:
         before = session.get(Topup, topup_id)
-        status_before = before.status if before is not None else None
-        after = resolve_topup(session, provider, topup_id, now=now)
+        if before is None:
+            continue
+        status_before = before.status
+        after = resolve_topup(session, rails.for_topup(before.provider), topup_id, now=now)
         changed += int(after.status != status_before)
     return changed
 
 
 def resolve_topup(
-    session: Session, provider: PaymentsProvider, topup_id: UUID, now: datetime | None = None
+    session: Session,
+    provider: PaymentsProvider | None,
+    topup_id: UUID,
+    now: datetime | None = None,
 ) -> Topup:
+    """Ask the rail about a top-up waiting too long, and expire it once it is too old.
+
+    With no provider (its rail is no longer offered), the top-up can only expire.
+    """
     settings = get_settings()
     now = now or datetime.now(UTC)
     topup = session.get(Topup, topup_id, populate_existing=True)
@@ -251,7 +260,7 @@ def resolve_topup(
 
     queried = False
     answer: RailResult | None = None
-    if status is TopupStatus.PENDING and checkout_request_id is not None:
+    if status is TopupStatus.PENDING and checkout_request_id is not None and provider is not None:
         queried = True
         try:
             query = provider.stk_query(checkout_request_id)
@@ -435,6 +444,7 @@ def _view(topup: Topup, *, replay: bool = False) -> TopupView:
     return TopupView(
         id=topup.id,
         status=TopupStatus(topup.status),
+        rail=topup.provider,
         amount_cents=topup.amount_cents,
         phone_e164=topup.phone_e164,
         checkout_request_id=topup.checkout_request_id,

@@ -1,6 +1,7 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
 	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups \
-	openapi e2e screenshots
+	openapi e2e screenshots demo-seed demo-reset \
+	tf-check aws-bootstrap aws-foundation aws-plan aws-up aws-sleep aws-wake aws-down aws-run-job
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
 API := cd api &&
@@ -79,10 +80,20 @@ screenshots:
 	$(WEB) node scripts/screenshots.mjs
 
 # One STK top-up through a running API (`make run`), on the mock or the Daraja sandbox.
-# PHONE=+254712345000 succeeds on the mock; see docs/runbooks/daraja-sandbox-top-up.md.
+# PHONE=+254712345000 succeeds on the mock. RAIL=sandbox uses the Daraja sandbox;
+# see docs/runbooks/daraja-sandbox-top-up.md.
 smoke-topup:
 	@test -n "$(PHONE)" || (echo "usage: make smoke-topup PHONE=+2547XXXXXXXX [AMOUNT=1]"; exit 1)
-	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1)
+	$(API) $(VENV)/python scripts/topup_smoke.py --phone "$(PHONE)" --amount $(or $(AMOUNT),1) \
+		$(if $(RAIL),--rail $(RAIL))
+
+# Demo wallets (@amina, @baraka, @wanjiku) with history, in the dev database.
+demo-seed:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-demo seed
+
+# What the public demo does nightly: delete every wallet and payment, then seed again.
+demo-reset:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-demo reset --yes
 
 # Check top-ups still waiting on M-PESA with STK Query.
 resolve-topups:
@@ -106,3 +117,55 @@ fmt:
 	$(API) $(VENV)/ruff check --fix src tests alembic
 	$(API) $(VENV)/ruff format src tests alembic
 	$(WEB) npm run format
+
+# ---- AWS (docs/runbooks/aws-first-deploy.md, docs/runbooks/aws-costs.md) ----
+# These use your AWS CLI credentials (export AWS_PROFILE first). CI never applies.
+TF := infra/terraform
+TF_BACKEND := -backend-config=../backend.hcl
+APP_VARS := $(if $(TAG),-var api_image_tag=$(TAG)) \
+	$(if $(SNAPSHOT),-var restore_snapshot_identifier=$(SNAPSHOT))
+
+# What CI runs: formatting, validation without a backend, and tflint.
+tf-check:
+	terraform -chdir=$(TF) fmt -check -recursive
+	for stack in bootstrap foundation app; do \
+		terraform -chdir=$(TF)/$$stack init -backend=false -input=false >/dev/null && \
+		terraform -chdir=$(TF)/$$stack validate || exit 1; \
+	done
+	cd $(TF) && tflint --init --config "$$PWD/.tflint.hcl" >/dev/null && \
+		tflint --recursive --config "$$PWD/.tflint.hcl"
+
+aws-bootstrap:
+	terraform -chdir=$(TF)/bootstrap init -input=false
+	terraform -chdir=$(TF)/bootstrap apply
+
+aws-foundation:
+	terraform -chdir=$(TF)/foundation init -input=false $(TF_BACKEND)
+	terraform -chdir=$(TF)/foundation apply
+
+aws-plan:
+	terraform -chdir=$(TF)/app init -input=false $(TF_BACKEND)
+	terraform -chdir=$(TF)/app plan $(APP_VARS)
+
+# Create or update the app stack, awake. TAG=<sha> pins the image; SNAPSHOT=<id> restores RDS.
+aws-up:
+	terraform -chdir=$(TF)/app init -input=false $(TF_BACKEND)
+	terraform -chdir=$(TF)/app apply $(APP_VARS)
+
+# API to 0 tasks, RDS stopped (AWS restarts it after 7 days), schedules paused. The ALB keeps billing.
+aws-sleep:
+	terraform -chdir=$(TF)/app init -input=false $(TF_BACKEND)
+	terraform -chdir=$(TF)/app apply -var awake=false $(APP_VARS)
+
+aws-wake:
+	terraform -chdir=$(TF)/app init -input=false $(TF_BACKEND)
+	terraform -chdir=$(TF)/app apply -var awake=true $(APP_VARS)
+
+# Destroy the app stack after RDS's final snapshot. Foundation (ECR, Budgets, OIDC) stays.
+aws-down:
+	infra/scripts/aws-down.sh
+
+# Run a scheduled job now. JOB=demo-reset also seeds a brand-new database.
+aws-run-job:
+	@test -n "$(JOB)" || (echo "usage: make aws-run-job JOB=demo-reset|resolve-topups"; exit 1)
+	infra/scripts/aws-run-job.sh $(JOB)

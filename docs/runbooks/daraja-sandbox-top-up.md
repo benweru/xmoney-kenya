@@ -14,11 +14,15 @@ CI runs every top-up test against the local mock. This is the manual check that 
 Put the credentials in `api/.env`. That file is gitignored. Never commit it, and never paste the keys into an issue or PR.
 
 ```bash
+# Offer both rails; the wallet app shows a switch, and the API defaults to the first.
+PAYMENT_RAILS=["mock","sandbox"]
 DARAJA_BASE_URL=https://sandbox.safaricom.co.ke
 DARAJA_CONSUMER_KEY=<consumer key>
 DARAJA_CONSUMER_SECRET=<consumer secret>
 DARAJA_SHORTCODE=174379
 DARAJA_PASSKEY=<passkey from the portal>
+# Optional on a laptop, required behind an https PUBLIC_BASE_URL: the only phones the sandbox rail prompts.
+DARAJA_SANDBOX_ALLOWED_PHONES=["+2547XXXXXXXX"]
 
 # The tunnel's https URL, if you have one. Daraja will post to
 # $PUBLIC_BASE_URL/v1/payments/stk/callback/$STK_CALLBACK_TOKEN
@@ -38,10 +42,10 @@ git status --short api/.env   # must print nothing: the file is ignored
 make up && make migrate
 make run                                  # terminal 1: the API, reading api/.env
 cloudflared tunnel --url http://localhost:8000   # terminal 2, optional
-make smoke-topup PHONE=+2547XXXXXXXX     # terminal 3
+make smoke-topup PHONE=+2547XXXXXXXX RAIL=sandbox   # terminal 3
 ```
 
-`make smoke-topup` registers `@smoketest` with that phone if it is new, signs in with the code from the sandbox inbox, sends a KES 1 STK Push, and polls `GET /v1/topups/{id}`. Approve the prompt on the phone. It prints each state and exits 0 only on `succeeded`:
+In the wallet app (`make run-web`), the top-up screen now has a **Mock / Daraja sandbox** switch. `make smoke-topup` registers `@smoketest` with that phone if it is new, signs in with the code from the sandbox inbox, sends a KES 1 STK Push, and polls `GET /v1/topups/{id}`. Approve the prompt on the phone. It prints each state and exits 0 only on `succeeded`:
 
 ```text
 signed in as @smoketest
@@ -58,6 +62,8 @@ With a tunnel, the callback usually lands within seconds and the receipt is set.
 | Symptom | Likely cause |
 | --- | --- |
 | `Refusing to start: refusing Safaricom host` | `DARAJA_BASE_URL` is not exactly `https://sandbox.safaricom.co.ke`. |
+| `Refusing to start: the sandbox rail needs DARAJA_CONSUMER_KEY…` | `PAYMENT_RAILS` includes `sandbox` but a key is still the `.env.example` placeholder. |
+| top-up refused with `rail_unavailable` | `PAYMENT_RAILS` does not include `sandbox`, or the phone is not in `DARAJA_SANDBOX_ALLOWED_PHONES`. |
 | top-up `failed` with "Invalid Access Token" or a 400 from OAuth | wrong consumer key or secret, or the app lacks the M-Pesa Express product |
 | top-up `failed` with "Wrong credentials" | shortcode and passkey do not match |
 | top-up `failed` with "Invalid CallBackURL" | `PUBLIC_BASE_URL` is not a public URL. Use the tunnel's https URL, or remove the setting and rely on STK Query. |

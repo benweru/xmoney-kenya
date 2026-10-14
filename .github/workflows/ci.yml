@@ -135,3 +135,42 @@ jobs:
       - name: Stop
         if: always()
         run: docker compose --profile app down -v
+
+  # Offline checks only: no AWS credentials, no backend, nothing is planned or applied.
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.5"
+          terraform_wrapper: false
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.64.0
+      - uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('infra/terraform/.tflint.hcl') }}
+      - name: Format
+        run: terraform fmt -check -recursive -diff
+      - name: Validate
+        run: |
+          for stack in bootstrap foundation app; do
+            echo "::group::$stack"
+            terraform -chdir=$stack init -backend=false -input=false -lockfile=readonly
+            terraform -chdir=$stack validate
+            echo "::endgroup::"
+          done
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "$PWD/.tflint.hcl"
+          tflint --recursive --config "$PWD/.tflint.hcl" --format compact
+      - name: Shellcheck the AWS scripts
+        working-directory: infra/scripts
+        run: shellcheck ./*.sh

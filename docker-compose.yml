@@ -28,7 +28,7 @@ services:
       SANDBOX_MODE: "true"
       DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
       # The API serves the Daraja mock itself, so it calls its own port.
-      DARAJA_BASE_URL: http://127.0.0.1:8000/sandbox/daraja
+      DARAJA_MOCK_BASE_URL: http://127.0.0.1:8000/sandbox/daraja
       # The web container's nginx proxies /api/* here and appends to X-Forwarded-For.
       TRUSTED_PROXY_HOPS: "1"
     ports:

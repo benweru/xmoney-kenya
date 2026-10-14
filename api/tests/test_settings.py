@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 import pytest
 from pydantic import ValidationError
 
@@ -34,3 +36,27 @@ def test_refuses_production_daraja_url_at_startup(
 def test_accepts_the_public_daraja_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DARAJA_BASE_URL", "https://sandbox.safaricom.co.ke")
     assert Settings().daraja_base_url == "https://sandbox.safaricom.co.ke"
+
+
+def test_database_url_is_built_from_rds_parts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DB_HOST", "xmoney.abc123.eu-west-1.rds.amazonaws.com")
+    monkeypatch.setenv("DB_USERNAME", "xmoney")
+    monkeypatch.setenv("DB_PASSWORD", "p@ss:w/rd?#%")
+    url = urlparse(Settings().sqlalchemy_url)
+    assert url.scheme == "postgresql+psycopg"
+    assert url.hostname == "xmoney.abc123.eu-west-1.rds.amazonaws.com"
+    assert url.port == 5432 and url.path == "/xmoney"
+    assert parse_qs(url.query) == {"sslmode": ["require"]}
+    assert "p@ss" not in url.netloc
+
+
+def test_db_host_needs_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DB_HOST", "db.internal")
+    with pytest.raises(ValidationError, match="DB_USERNAME and DB_PASSWORD"):
+        Settings()
+
+
+def test_database_url_is_used_as_is_without_db_host() -> None:
+    assert Settings(database_url="postgresql+psycopg://a:b@h/d").sqlalchemy_url == (
+        "postgresql+psycopg://a:b@h/d"
+    )
