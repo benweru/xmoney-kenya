@@ -38,6 +38,8 @@ def pytest_configure(config: pytest.Config) -> None:
     os.environ["RATE_LIMITS_ENABLED"] = "false"
     # Port 9 (discard) is closed, so mock callbacks never reach a dev server on :8000.
     os.environ["PUBLIC_BASE_URL"] = "http://127.0.0.1:9"
+    # Hex only: a .env token with slashes would 404 the callback route.
+    os.environ["STK_CALLBACK_TOKEN"] = "ab" * 16
     from xmoney.config import get_settings
 
     get_settings.cache_clear()

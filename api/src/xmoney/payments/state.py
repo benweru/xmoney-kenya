@@ -3,14 +3,14 @@
     initiated -> pending      push accepted
     initiated -> failed       push refused
     initiated -> expired      push never accepted in time
-    pending   -> succeeded    callback or STK Query: paid
+    pending   -> succeeded    STK Query: paid (a success callback is not enough)
     pending   -> failed       callback or STK Query: cancelled, timed out, no funds
     pending   -> expired      no answer in time
-    expired   -> succeeded    a late answer: paid
+    expired   -> succeeded    a late STK Query: paid
     expired   -> failed       a late answer: not paid
 
-`expired` is "we stopped waiting", not "no money moved". A late callback or
-query that proves the customer paid must still credit the wallet.
+`expired` is "we stopped waiting", not "no money moved". A late callback is
+only a hint; STK Query must still confirm before the wallet is credited.
 """
 
 from __future__ import annotations

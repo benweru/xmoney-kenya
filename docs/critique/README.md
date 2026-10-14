@@ -23,3 +23,4 @@ Keep it to about one page. Read the code, not just the PR descriptions.
 | File | Scope | Top finding | Roadmap item |
 | --- | --- | --- | --- |
 | [m0-m1.md](m0-m1.md) | PRs #1–#8 | A success callback with the right URL token credits a wallet with no second check | M2 critique follow-up |
+| [m2-stk-query-confirm.md](m2-stk-query-confirm.md) | STK Query before credit | A failure callback with the URL token can still fail a paid top-up | Confirm failures with STK Query (M5 allowlist also helps) |

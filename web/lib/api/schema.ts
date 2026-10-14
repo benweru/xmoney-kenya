@@ -304,7 +304,7 @@ export interface paths {
     put?: never;
     /**
      * Stk Callback
-     * @description Daraja's result callback. Duplicates and unknown ids are acknowledged and logged.
+     * @description Daraja's result callback. A success is logged; STK Query must confirm before credit.
      */
     post: operations["stk_callback_v1_payments_stk_callback__token__post"];
     delete?: never;

@@ -77,7 +77,7 @@ class PaymentsProvider(Protocol):
         """Ask the handset to authorize a whole-shilling collection."""
 
     def stk_query(self, checkout_request_id: str) -> StkQueryResult:
-        """Ask the rail how a push ended, for when its callback never arrives."""
+        """Ask the rail how a push ended. Required before crediting a success callback."""
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         """Turn a rail callback body into a typed result. Does not post the ledger."""

@@ -1,6 +1,6 @@
 # 005. STK top-ups: a state machine with exactly-once callbacks
 
-- Status: Accepted
+- Status: Accepted (credit-on-callback superseded by [009](009-stk-query-before-credit.md))
 - Date: 2026-10-13
 
 ## Context
@@ -16,13 +16,13 @@ An STK Push top-up is asynchronous. The API asks Daraja to prompt the customer's
 | `initiated` | `pending` | Daraja accepted the push and gave us a `CheckoutRequestID` |
 | `initiated` | `failed` | Daraja refused the push (HTTP 4xx) |
 | `initiated` | `expired` | the push never got through before the deadline |
-| `pending` | `succeeded` / `failed` | a callback or STK Query gives a final answer |
+| `pending` | `succeeded` / `failed` | STK Query confirms paid, or a failure callback / query gives a final no |
 | `pending` | `expired` | no final answer within `STK_EXPIRE_AFTER_SECONDS` |
 | `expired` | `succeeded` / `failed` | a late callback gives a final answer |
 
 `expired` means "we stopped waiting", not "no money moved". A customer who paid must still be credited when the late callback arrives. `succeeded` and `failed` are final. A trigger in Postgres enforces this table and refuses edits to the amount, the owner, and the request, and any change to `checkout_request_id` or `journal_entry_id` once set. The service checks the same table first.
 
-**Exactly once.** The callback handler locks the top-up row (`SELECT … FOR UPDATE` on `checkout_request_id`). Only the first final answer changes state. The wallet credit (debit `system:mpesa_float`, credit the wallet) is posted with `post_entry_in_transaction`, so the status change and the journal entry commit together or not at all. Its ledger idempotency key is `topup:{id}`, so even a bug that applied twice could not post twice. Every callback is kept in `stk_callbacks` with what it did: `applied`, `duplicate`, `conflict` (it contradicts the final state), `amount_mismatch` (held for reconciliation, not credited), or `unmatched`.
+**Exactly once.** The callback handler locks the top-up row (`SELECT … FOR UPDATE` on `checkout_request_id`). A success callback is `recorded`, not credited; [009](009-stk-query-before-credit.md) requires STK Query before the wallet moves. Failure callbacks can still fail the top-up. The wallet credit (debit `system:mpesa_float`, credit the wallet) is posted with `post_entry_in_transaction`, so the status change and the journal entry commit together or not at all. Its ledger idempotency key is `topup:{id}`, so even a bug that applied twice could not post twice. Every callback is kept in `stk_callbacks` with what it did: `recorded`, `applied`, `duplicate`, `conflict` (it contradicts the final state), `amount_mismatch` (held for reconciliation, not credited), or `unmatched`.
 
 **Out of order.** A callback for an unknown `CheckoutRequestID` is logged as `unmatched` and acknowledged. When the push response is then saved, any unmatched callbacks for that id are applied in the same transaction.
 
