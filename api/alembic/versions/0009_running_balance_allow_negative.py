@@ -1,6 +1,6 @@
 """Skip locking system accounts; keep running balances on wallets.
 
-Revision ID: 0009_running_balance_allow_negative
+Revision ID: 0009_wallet_running_totals
 Revises: 0008_stk_callback_recorded
 Create Date: 2026-10-15
 
@@ -17,7 +17,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0009_running_balance_allow_negative"
+revision: str = "0009_wallet_running_totals"
 down_revision: str | None = "0008_stk_callback_recorded"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
