@@ -56,6 +56,7 @@ def upgrade() -> None:
         "ledger_accounts",
         "running_debit_cents >= 0 AND running_credit_cents >= 0",
     )
+    op.execute(sa.text("ALTER TABLE ledger_accounts DISABLE TRIGGER ledger_accounts_immutable"))
     op.execute(
         sa.text(
             """
@@ -84,6 +85,7 @@ def upgrade() -> None:
             """
         )
     )
+    op.execute(sa.text("ALTER TABLE ledger_accounts ENABLE TRIGGER ledger_accounts_immutable"))
     op.execute(
         sa.text(
             """
