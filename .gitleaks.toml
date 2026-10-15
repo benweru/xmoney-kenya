@@ -19,4 +19,5 @@ regexes = [
   '''DARAJA_CONSUMER_(KEY|SECRET)=sandbox''',
   '''DARAJA_PASSKEY=sandbox-passkey''',
   '''STK_CALLBACK_TOKEN = "ab" \* 16''',
+  '''sandbox:sandbox''',
 ]

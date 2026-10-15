@@ -31,7 +31,7 @@ trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 xmoney-kenya
 
 `pip-audit` fails the job on any reported vulnerability. `npm audit --audit-level=high` fails on high or critical only (moderate and low are listed in the log). Trivy fails on high or critical issues **that have a fix**. Unfixed distro CVEs are published below when they appear, rather than blocking every PR on a base-image lag.
 
-Gitleaks uses [`.gitleaks.toml`](../../.gitleaks.toml). Documented sandbox placeholders (`sandbox` Daraja keys, local `xmoney:xmoney` compose passwords, test callback tokens) are allowlisted. Real secrets still fail CI. `api/.env` and `.sf/` are gitignored and must stay that way.
+Gitleaks uses [`.gitleaks.toml`](../../.gitleaks.toml). Documented sandbox placeholders (`sandbox` Daraja keys, `curl -u sandbox:sandbox` in the README, local `xmoney:xmoney` compose passwords, test callback tokens) are allowlisted. Real secrets still fail CI. `api/.env` and `.sf/` are gitignored and must stay that way.
 
 ## Latest result (this write-up)
 
