@@ -13,5 +13,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [007](007-aws-iam-design.md) | AWS IAM: OIDC deploys, one role per job, and secrets per task | Accepted |
 | [008](008-no-nat-gateway.md) | AWS network: no NAT gateway, tasks in public subnets, CloudFront in front | Accepted |
 | [009](009-stk-query-before-credit.md) | Credit an STK top-up only after STK Query confirms | Accepted |
+| [010](010-wallet-running-balance-no-float-lock.md) | Do not lock system accounts; running balances on wallets | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.

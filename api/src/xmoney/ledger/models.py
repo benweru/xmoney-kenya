@@ -1,4 +1,4 @@
-"""Ledger tables. Balances are not stored; they are summed from postings."""
+"""Ledger tables. Wallet balances are trigger-maintained; system accounts sum postings."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -56,6 +57,10 @@ class LedgerAccount(Base):
             "(account_type IN ('liability', 'equity', 'income') AND normal_side = 'credit')",
             name="ck_ledger_accounts_normal_side",
         ),
+        CheckConstraint(
+            "running_debit_cents >= 0 AND running_credit_cents >= 0",
+            name="ck_ledger_accounts_running_non_negative",
+        ),
         UniqueConstraint("code", name="uq_ledger_accounts_code"),
         Index(
             "uq_ledger_accounts_one_owner",
@@ -76,6 +81,15 @@ class LedgerAccount(Base):
         Uuid,
         ForeignKey("users.id", name="fk_ledger_accounts_owner_user_id", ondelete="RESTRICT"),
         nullable=True,
+    )
+    allow_negative: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    running_debit_cents: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+    running_credit_cents: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

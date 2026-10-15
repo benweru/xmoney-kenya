@@ -2,10 +2,11 @@
 
 `post_entry` commits. `post_entry_in_transaction` posts inside the caller's
 transaction, for flows such as an STK callback where a payment row and its
-entry must commit together. Both lock every account they touch, in id order,
-so concurrent posts cannot deadlock. Spend limits are not applied here. The
-database still rejects an entry whose debits do not equal its credits, and it
-rejects updates.
+entry must commit together. Both lock accounts that may not go negative, in
+id order, so concurrent wallet posts cannot deadlock. System accounts such
+as the M-PESA float are not locked (see ADR 010). Spend limits are not
+applied here. The database still rejects an entry whose debits do not equal
+its credits, and it rejects updates.
 """
 
 from __future__ import annotations
@@ -53,6 +54,7 @@ def seed_system_accounts(session: Session) -> None:
                     normal_side=spec.normal_side.value,
                     currency="KES",
                     owner_user_id=None,
+                    allow_negative=True,
                 )
             )
 
@@ -137,7 +139,10 @@ def get_balance(session: Session, account_id: UUID) -> AccountBalance:
     account = session.get(LedgerAccount, account_id)
     if account is None:
         raise AccountNotFound(f"unknown account {account_id}")
-    debits, credits = _account_sums(session, account_id)
+    if account.allow_negative:
+        debits, credits = _account_sums(session, account_id)
+    else:
+        debits, credits = _wallet_running_sums(session, account_id)
     normal = NormalSide(account.normal_side)
     balance = debits - credits if normal is NormalSide.DEBIT else credits - debits
     return AccountBalance(
@@ -176,16 +181,24 @@ def _assert_same_request(existing: JournalEntry, digest: str) -> None:
 def lock_accounts(session: Session, account_ids: Iterable[UUID]) -> Sequence[LedgerAccount]:
     """Lock accounts in id order, the order every poster uses, so lockers cannot deadlock.
 
-    Balances read after this, in the same transaction, include every committed
-    posting and cannot change until the transaction ends.
+    Pass wallet ids. System accounts that may go negative are not locked here
+    either; `_lock_accounts_and_post` filters them out. Balances read after
+    this, in the same transaction, include every committed posting and cannot
+    change until the transaction ends.
     """
+    return _load_accounts(session, account_ids, for_update=True)
+
+
+def _load_accounts(
+    session: Session, account_ids: Iterable[UUID], *, for_update: bool = False
+) -> Sequence[LedgerAccount]:
     ordered = sorted(set(account_ids))
-    rows = session.scalars(
-        select(LedgerAccount)
-        .where(LedgerAccount.id.in_(ordered))
-        .order_by(LedgerAccount.id)
-        .with_for_update()
-    ).all()
+    if not ordered:
+        return []
+    stmt = select(LedgerAccount).where(LedgerAccount.id.in_(ordered)).order_by(LedgerAccount.id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    rows = session.scalars(stmt).all()
     found = {row.id for row in rows}
     missing = [str(account_id) for account_id in ordered if account_id not in found]
     if missing:
@@ -194,7 +207,8 @@ def lock_accounts(session: Session, account_ids: Iterable[UUID]) -> Sequence[Led
 
 
 def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostCommand) -> None:
-    rows = lock_accounts(session, (line.account_id for line in command.postings))
+    rows = _load_accounts(session, (line.account_id for line in command.postings))
+    lock_accounts(session, (row.id for row in rows if not row.allow_negative))
     for row in rows:
         if row.currency != "KES":
             raise LedgerError(f"account {row.code} is not a KES account")
@@ -209,6 +223,15 @@ def _lock_accounts_and_post(session: Session, entry_id: UUID, command: PostComma
                 amount_cents=line.amount_cents,
             )
         )
+
+
+def _wallet_running_sums(session: Session, account_id: UUID) -> tuple[int, int]:
+    row = session.execute(
+        select(LedgerAccount.running_debit_cents, LedgerAccount.running_credit_cents).where(
+            LedgerAccount.id == account_id
+        )
+    ).one()
+    return int(row[0]), int(row[1])
 
 
 def _account_sums(session: Session, account_id: UUID) -> tuple[int, int]:
