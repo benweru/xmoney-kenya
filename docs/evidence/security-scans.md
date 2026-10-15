@@ -42,7 +42,7 @@ Gitleaks uses [`.gitleaks.toml`](../../.gitleaks.toml). Documented sandbox place
 | gitleaks | git history | n/a | n/a | none |
 | Trivy | `xmoney-kenya-api`, `xmoney-kenya-web` | 0 with a fix | 0 with a fix | none |
 
-Accepted findings: **none yet**. When a high/critical must stay open, add a row: CVE or advisory id, why it is accepted, owner, and a review date within 7 days.
+Accepted findings: **none.** The API and web Dockerfiles run `apt-get upgrade` / `apk upgrade` at image build so high/critical issues that already have a distro fix are not left sitting on a stale base tag. If Trivy still fails, list the CVE here with a reason and a review date within 7 days instead of silencing the job.
 
 ## Local
 

@@ -1,6 +1,10 @@
 # Sandbox-only API image. SANDBOX_MODE must stay true; the app refuses to start otherwise.
 FROM python:3.12-slim
 
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
