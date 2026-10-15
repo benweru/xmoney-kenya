@@ -86,16 +86,16 @@ def upgrade() -> None:
         )
     )
     op.execute(sa.text("ALTER TABLE ledger_accounts ENABLE TRIGGER ledger_accounts_immutable"))
+    op.execute(sa.text("DROP TRIGGER IF EXISTS ledger_accounts_immutable ON ledger_accounts"))
     op.execute(
         sa.text(
             """
-            CREATE OR REPLACE FUNCTION xmoney_reject_ledger_mutation()
+            CREATE OR REPLACE FUNCTION xmoney_reject_account_identity_mutation()
             RETURNS trigger
             LANGUAGE plpgsql
             AS $$
             BEGIN
-              IF TG_TABLE_NAME = 'ledger_accounts'
-                 AND TG_OP = 'UPDATE'
+              IF TG_OP = 'UPDATE'
                  AND current_setting('xmoney.maintain_running_balance', true) = 'on'
                  AND NEW.id IS NOT DISTINCT FROM OLD.id
                  AND NEW.code IS NOT DISTINCT FROM OLD.code
@@ -113,6 +113,16 @@ def upgrade() -> None:
                 USING ERRCODE = '55000';
             END;
             $$;
+            """
+        )
+    )
+    op.execute(
+        sa.text(
+            """
+            CREATE TRIGGER ledger_accounts_immutable
+            BEFORE UPDATE OR DELETE ON ledger_accounts
+            FOR EACH ROW
+            EXECUTE FUNCTION xmoney_reject_account_identity_mutation();
             """
         )
     )
@@ -155,18 +165,15 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(sa.text("DROP TRIGGER IF EXISTS postings_apply_running_balance ON postings"))
     op.execute(sa.text("DROP FUNCTION IF EXISTS xmoney_apply_running_balance()"))
+    op.execute(sa.text("DROP TRIGGER IF EXISTS ledger_accounts_immutable ON ledger_accounts"))
+    op.execute(sa.text("DROP FUNCTION IF EXISTS xmoney_reject_account_identity_mutation()"))
     op.execute(
         sa.text(
             """
-            CREATE OR REPLACE FUNCTION xmoney_reject_ledger_mutation()
-            RETURNS trigger
-            LANGUAGE plpgsql
-            AS $$
-            BEGIN
-              RAISE EXCEPTION 'immutable ledger row'
-                USING ERRCODE = '55000';
-            END;
-            $$;
+            CREATE TRIGGER ledger_accounts_immutable
+            BEFORE UPDATE OR DELETE ON ledger_accounts
+            FOR EACH ROW
+            EXECUTE FUNCTION xmoney_reject_ledger_mutation();
             """
         )
     )
