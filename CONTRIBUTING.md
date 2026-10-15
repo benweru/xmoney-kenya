@@ -12,7 +12,7 @@ Prefer the broader label when in doubt: `dev-tooling` rather than `add-pre-commi
 
 ## Pull requests
 
-`main` is protected. Every change lands through a pull request that needs one approval and green `api`, `web`, and `compose` checks.
+`main` is protected. Every change lands through a pull request that needs one approval and green CI (`api`, `web`, `compose`, and `security` among the jobs).
 
 - Keep PRs small, and describe what changed, why, and how it was tested.
 - Link the issue it closes (`Closes #12`).

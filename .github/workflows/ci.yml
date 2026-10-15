@@ -174,3 +174,55 @@ jobs:
       - name: Shellcheck the AWS scripts
         working-directory: infra/scripts
         run: shellcheck ./*.sh
+
+  # M2 evidence: dependency, secret, and image scans. Separate from pytest so a
+  # scan finding does not hide a test failure, and so we build images once here
+  # instead of adding minutes to the api job.
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (API)
+        working-directory: api
+        run: |
+          pip install -e ".[dev]" pip-audit
+          pip-audit --progress-spinner off --desc on
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm audit --omit=dev (web)
+        working-directory: web
+        run: npm ci && npm audit --omit=dev --audit-level=high
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.0"
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+      - name: gitleaks
+        run: gitleaks detect --source . --verbose --redact --exit-code 1
+      - name: Build images
+        run: docker compose --profile app build
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: xmoney-kenya-api:latest
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: xmoney-kenya-web:latest
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true

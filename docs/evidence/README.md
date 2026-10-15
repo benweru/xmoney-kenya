@@ -15,7 +15,7 @@ The plan and the targets are in the [roadmap](../roadmap.md#proof-track). Status
 | Mutation score (mutmut) | M1 | Stretch | at least 70% on the ledger, at least 60% on the others | `correctness.md` | planned |
 | Load test, first row | M2 | Core | at least 30 sends/s, p95 under 300 ms, p99 under 800 ms, errors under 0.5%, drift 0 | README, `load-tests.md` | planned |
 | Measured AWS cost | M2 | Core | at most $25 for a month awake, at most $3 with the app stack torn down | README, `cost.md` | planned |
-| Dependency, container, and secret scans | M2 | Core | 0 high or critical findings open more than 7 days | README badges, `security-scans.md` | planned |
+| Dependency, container, and secret scans | M2 | Core | 0 high or critical findings open more than 7 days | README badges, `security-scans.md` | in progress |
 | Lighthouse (mobile) | M2 | Stretch | performance at least 90, accessibility at least 95 | `web.md` | planned |
 | Chaos suite with counts | M3 | Core | at least 1,000 faults, 0 unexplained, drift 0 | `chaos.md` | planned |
 | Load test, second row | M3 | Core | at least 2× the M2 sends/s at the same p95 | `load-tests.md` | planned |
