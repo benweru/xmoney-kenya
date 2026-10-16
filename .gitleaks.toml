@@ -1,0 +1,23 @@
+# Secret scan config for CI (`gitleaks detect`). Placeholders in examples and
+# tests are not production credentials; real keys still fail the job.
+title = "xmoney-kenya"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented sandbox placeholders, local compose passwords, and test fixtures"
+paths = [
+  '''(^|/)\.gitleaks\.toml$''',
+  '''(^|/)api/\.env\.example$''',
+  '''(^|/)docs/''',
+  '''(^|/)infra/terraform/.+\.example$''',
+  '''(^|/)api/tests/''',
+]
+regexes = [
+  '''xmoney:xmoney@localhost''',
+  '''DARAJA_CONSUMER_(KEY|SECRET)=sandbox''',
+  '''DARAJA_PASSKEY=sandbox-passkey''',
+  '''STK_CALLBACK_TOKEN = "ab" \* 16''',
+  '''sandbox:sandbox''',
+]

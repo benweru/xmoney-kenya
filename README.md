@@ -2,6 +2,10 @@
 
 A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insensitive handle and a Kenyan mobile number, each gets a wallet, and a double-entry ledger records value in integer Kenya-shilling cents. Later milestones connect top-ups and cash-outs to M-PESA. The code here today is the foundation those flows will sit on.
 
+[![CI](https://github.com/benweru/xmoney-kenya/actions/workflows/ci.yml/badge.svg)](https://github.com/benweru/xmoney-kenya/actions/workflows/ci.yml)
+[![Security scans](https://img.shields.io/badge/security%20scans-evidence-0a5)](docs/evidence/security-scans.md)
+[![Evidence](https://img.shields.io/badge/evidence-index-0a5)](docs/evidence/README.md)
+
 > **Sandbox only. This is not a payment service, and it is not affiliated with X Corp.**
 >
 > "X Money for Kenya" is the name of an independent portfolio project. It is not built, endorsed, or sponsored by X Corp. (or its X Money product), Safaricom, or IntaSend. It does not hold a Central Bank of Kenya licence and **cannot move real money**. The process refuses to start unless sandbox mode is on, and both the settings loader and the Daraja client refuse every Safaricom host except `sandbox.safaricom.co.ke`. Nothing in this repository is an offer to store, transmit, or settle customer funds.
@@ -297,13 +301,14 @@ make pre-commit  # every pre-commit hook against every file
 
 `make setup` installs the [pre-commit](https://pre-commit.com/) hooks in `.pre-commit-config.yaml`: ruff (lint and format) and strict mypy for `api/`, ESLint and Prettier for `web/`, plus whitespace and YAML/TOML/JSON checks. Branch naming and the PR flow are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs five jobs:
+Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs six jobs:
 
 - `api`: ruff, strict mypy, a check that `openapi.json` is current, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16.
 - `web`: ESLint, Prettier, a check that the typed client matches `openapi.json`, typecheck, and build.
 - `compose`: builds the demo stack and smoke-tests both apps.
 - `e2e`: Playwright on a mobile viewport against the compose stack on the Daraja mock (see [`web/README.md`](web/README.md#end-to-end-tests)).
 - `terraform`: `fmt -check`, `validate` for all three stacks without a backend, `tflint` with the AWS ruleset, and `shellcheck` on the AWS scripts. It uses no AWS credentials.
+- `security`: pip-audit on the API, `npm audit --omit=dev` on the web app, gitleaks on git history, and Trivy high/critical (with a fix) on the built API and web images. Write-up: [`docs/evidence/security-scans.md`](docs/evidence/security-scans.md).
 
 A separate workflow, **Deploy demo**, ships `main` to AWS over OIDC once the account exists (see [The AWS demo](#the-aws-demo)).
 
