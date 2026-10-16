@@ -9,9 +9,9 @@ The plan and the targets are in the [roadmap](../roadmap.md#proof-track). Status
 | CI time | M0 | Core | API job under 5 min | README | planned |
 | ADR for every hard decision | M0 | Core | 001–005 indexed | [`../adr/README.md`](../adr/README.md) | in progress |
 | PR size | M0 | Core | median under 400 changed lines | `hygiene.md` | planned |
-| "Broke it on purpose" results | M1 | Core | every manual mutation check re-run and listed | `correctness.md` | planned |
-| Hypothesis ledger properties | M1 | Core | 3 or more properties, at least 200 examples each | `correctness.md` | planned |
-| Coverage per module | M1 | Core | at least 90% on ledger, transfers, and top-ups; at least 80% overall | README, `hygiene.md` | planned |
+| "Broke it on purpose" results | M1 | Core | every manual mutation check re-run and listed | `correctness.md` | published |
+| Hypothesis ledger properties | M1 | Core | 3 or more properties, at least 200 examples each | `correctness.md` | published |
+| Coverage per module | M1 | Core | at least 90% on ledger, transfers, and top-ups; at least 80% overall | README, `hygiene.md` | in progress |
 | Mutation score (mutmut) | M1 | Stretch | at least 70% on the ledger, at least 60% on the others | `correctness.md` | planned |
 | Load test, first row | M2 | Core | at least 30 sends/s, p95 under 300 ms, p99 under 800 ms, errors under 0.5%, drift 0 | README, `load-tests.md` | planned |
 | Measured AWS cost | M2 | Core | at most $25 for a month awake, at most $3 with the app stack torn down | README, `cost.md` | planned |

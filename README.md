@@ -4,6 +4,7 @@ A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insen
 
 [![CI](https://github.com/benweru/xmoney-kenya/actions/workflows/ci.yml/badge.svg)](https://github.com/benweru/xmoney-kenya/actions/workflows/ci.yml)
 [![Security scans](https://img.shields.io/badge/security%20scans-evidence-0a5)](docs/evidence/security-scans.md)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A580%25%20CI-0a5)](docs/evidence/hygiene.md)
 [![Evidence](https://img.shields.io/badge/evidence-index-0a5)](docs/evidence/README.md)
 
 > **Sandbox only. This is not a payment service, and it is not affiliated with X Corp.**
@@ -303,7 +304,7 @@ make pre-commit  # every pre-commit hook against every file
 
 Pytest always uses the `xmoney_test` database, so a run does not wipe wallets in the dev database. The suite is serial: tests share one schema and truncate it between cases (the fixture sets `xmoney.allow_truncate` for that one statement). GitHub Actions runs six jobs:
 
-- `api`: ruff, strict mypy, a check that `openapi.json` is current, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16.
+- `api`: ruff, strict mypy, a check that `openapi.json` is current, migrations, `alembic check` for model drift, a downgrade/upgrade round trip, and pytest against Postgres 16 with coverage (`--cov-fail-under=80`). Ledger properties (≥200 Hypothesis examples each) and the mutation write-up are in [`docs/evidence/correctness.md`](docs/evidence/correctness.md).
 - `web`: ESLint, Prettier, a check that the typed client matches `openapi.json`, typecheck, and build.
 - `compose`: builds the demo stack and smoke-tests both apps.
 - `e2e`: Playwright on a mobile viewport against the compose stack on the Daraja mock (see [`web/README.md`](web/README.md#end-to-end-tests)).
