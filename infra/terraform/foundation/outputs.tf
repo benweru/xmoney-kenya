@@ -16,3 +16,8 @@ output "daraja_secret_name" {
 output "account_id" {
   value = data.aws_caller_identity.current.account_id
 }
+
+output "budget_hard_cap_usd" {
+  description = "Actual monthly spend that attaches the deny policy and runs the halt Lambda."
+  value       = var.budget_hard_cap_usd
+}

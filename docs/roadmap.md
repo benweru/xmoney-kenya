@@ -85,7 +85,7 @@ One region (for example `eu-west-1`), all in Terraform under `infra/terraform/`,
 
 Cost guardrails:
 
-- **AWS Budgets** in `foundation`: alerts at $5, $10, and $20 actual spend, plus a forecast alert, emailed to you. Turn on Cost Explorer and the free-tier usage alerts.
+- **AWS Budgets** in `foundation`: alerts at $5, $10, and $20 actual spend, plus a forecast alert, emailed to you, and a **$15 actual hard cap** (IAM deny on admin/deploy principals plus Lambda to scale ECS to 0 and stop RDS). SCPs do not apply to this Organizations management account. Turn on Cost Explorer and the free-tier usage alerts.
 - **Scale to near-zero**: `make aws-sleep` sets both ECS services to 0 tasks and stops RDS. `make aws-wake` reverses it. Running cost while asleep is mostly the ALB.
 - **Tear down**: `make aws-down` runs `terraform destroy` on the `app` stack after taking a final RDS snapshot. `make aws-up` rebuilds it. Document both in `docs/runbooks/aws-costs.md`.
 - Tag every resource (`project=xmoney-kenya`, `env=demo`) so Cost Explorer can filter by it.
