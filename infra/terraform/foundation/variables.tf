@@ -54,6 +54,12 @@ variable "github_environment" {
   default     = "demo"
 }
 
+variable "github_immutable_subject" {
+  description = "GitHub's immutable OIDC subject prefix, owner@owner_id/repo@repo_id (gh api repos/OWNER/REPO/actions/oidc/customization/sub). Newer repositories sign tokens with it instead of owner/repo."
+  type        = string
+  default     = "benweru@138494503/xmoney-kenya@1416128222"
+}
+
 variable "create_github_oidc_provider" {
   description = "False if the account already has the token.actions.githubusercontent.com provider."
   type        = bool
