@@ -45,7 +45,7 @@ docs/runbooks/  step-by-step operations: Daraja sandbox, first AWS deploy, AWS c
 docker/     Postgres init scripts for docker compose
 ```
 
-Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md), [005 STK top-ups](docs/adr/005-stk-topup-state-machine.md), [006 open-demo protections](docs/adr/006-open-demo-protections.md), [007 AWS IAM](docs/adr/007-aws-iam-design.md), [008 no NAT gateway](docs/adr/008-no-nat-gateway.md).
+Design decisions live in [`docs/adr/`](docs/adr/): [001 stack](docs/adr/001-stack-choice.md), [002 ledger](docs/adr/002-ledger-design.md), [003 AWS hosting](docs/adr/003-aws-hosting-terraform-later.md), [004 sign-in](docs/adr/004-pin-otp-sign-in.md), [005 STK top-ups](docs/adr/005-stk-topup-state-machine.md), [006 open-demo protections](docs/adr/006-open-demo-protections.md), [007 AWS IAM](docs/adr/007-aws-iam-design.md), [008 no NAT gateway](docs/adr/008-no-nat-gateway.md), [009 STK Query before credit](docs/adr/009-stk-query-before-credit.md), [010 no float lock](docs/adr/010-wallet-running-balance-no-float-lock.md).
 
 ## Architecture
 
@@ -99,7 +99,7 @@ sequenceDiagram
 
 Money is an integer number of **cents**. 1 KES = 100 cents. There are no floats. M-PESA itself collects whole shillings, so the STK adapter rejects an amount that is not divisible by 100. The ledger keeps cents so a later fee can be a fraction of a shilling without ever leaving integers.
 
-Balances are not a column. They are the sum of postings. Asset and expense accounts are debit-normal. Liability, equity, and income accounts are credit-normal. A wallet is a liability: we would owe the customer that balance.
+Wallet balances are trigger-maintained running totals ([ADR 010](docs/adr/010-wallet-running-balance-no-float-lock.md)). System accounts such as `system:mpesa_float` still sum postings and are **not** locked on post, so top-ups for different wallets are not serialized on one hot row. Asset and expense accounts are debit-normal. Liability, equity, and income accounts are credit-normal. A wallet is a liability: we would owe the customer that balance.
 
 | Account | Type | What it is for |
 | --- | --- | --- |
