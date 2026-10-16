@@ -90,13 +90,13 @@ cp infra/terraform/foundation/terraform.tfvars.example infra/terraform/foundatio
 make aws-foundation
 ```
 
-Review the plan: **7 to add**: the budget `xmoney-demo-monthly`, the ECR repository `xmoney-demo/api` and its lifecycle policy, the GitHub OIDC provider, the role `xmoney-demo-github-deploy` and its ECR policy, and the secret `xmoney-demo/daraja-sandbox`. Type `yes`.
+Review the plan: the budget `xmoney-demo-monthly` (alerts at $5/$10/$20 plus a **$15 hard cap**), the ECR repository `xmoney-demo/api` and its lifecycle policy, the GitHub OIDC provider, the role `xmoney-demo-github-deploy` and its ECR policy, the secret `xmoney-demo/daraja-sandbox`, and the hard-cap IAM/SNS/Lambda pieces. Type `yes`.
 
 If the apply fails with `EntityAlreadyExists` on the OIDC provider, the account already has one. Set `create_github_oidc_provider = false` and apply again.
 
 Checks:
 
-- **Billing and Cost Management → Budgets** shows `xmoney-demo-monthly` with alerts at $5, $10, and $20 actual, plus $20 forecast.
+- **Billing and Cost Management → Budgets** shows `xmoney-demo-monthly` with alerts at $5, $10, and $20 actual, plus $20 forecast, and an automatic action at $15 actual. That action cannot be an SCP on this account; see [aws-costs.md](aws-costs.md).
 - `terraform -chdir=infra/terraform/foundation output` prints `ecr_repository_url`, `deploy_role_arn`, and `daraja_secret_name`.
 
 ### Optional: put the Daraja sandbox keys in Secrets Manager

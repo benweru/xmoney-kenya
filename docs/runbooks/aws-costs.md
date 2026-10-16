@@ -1,6 +1,6 @@
 # Runbook: what the AWS demo costs, and how to sleep, wake, and tear it down
 
-The demo has three states. Pick one deliberately, because the Budgets alerts at $5, $10, and $20 a month **will** fire if the app stack stays awake.
+The demo has three states. Pick one deliberately, because the Budgets alerts at $5, $10, and $20 a month **will** fire if the app stack stays awake, and **actual spend at $15** attaches a deny policy and tries to halt ECS and RDS.
 
 | State | Command | About a day | About a month | Back to awake |
 | --- | --- | --- | --- | --- |
@@ -85,9 +85,36 @@ New task definitions use the most recently pushed image, unless you pass `TAG=<s
 aws rds delete-db-snapshot --db-snapshot-identifier <id>
 ```
 
+## The $15 hard cap
+
+Email alerts are not a spend limit. Foundation also creates a Budgets *action* at **$15 actual** (absolute, account-wide).
+
+**What runs at $15 actual (after AWS billing delay, often hours):**
+
+1. Email to `alert_email`, same as the $5/$10/$20 alerts.
+2. AWS Budgets assumes `xmoney-demo-budgets-actions` and **attaches** the customer managed policy `xmoney-demo-budget-hard-cap` to:
+   - the IAM Identity Center role `AWSReservedSSO_AdministratorAccess_*`
+   - the GitHub deploy role `xmoney-demo-github-deploy`
+   - the IAM user `Admin`, if that user still exists (`budget_cap_iam_users`)
+3. SNS topic `xmoney-demo-budget-hard-cap` invokes Lambda `xmoney-demo-budget-hard-cap`, which sets every ECS service `desiredCount` to 0, stops leftover tasks, and **stops** RDS instances that are running. It does **not** delete resources.
+
+**Why this is not an SCP.** Enabling Identity Center created an AWS Organization with this account as the **management** account. [Service control policies do not affect the management account](https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html). An `APPLY_SCP_POLICY` budget action would look like a hard cap and do nothing here. The IAM deny on the principals Ben and GitHub actually use is the control that can fire in this account.
+
+**What the IAM deny does not do**
+
+- It does not apply to the **root** user. Do not use root.
+- It does not apply to the halt Lambda's own role (so that role can still call `ecs:UpdateService` and `rds:StopDBInstance`).
+- It does not instantly stop resources that are already running. An ALB, its public IPv4 addresses, CloudFront, Secrets Manager, and RDS *storage* keep billing until you destroy or (for RDS) stop them. **Lambda stop is what actually cuts Fargate and RDS instance hours.** The ALB keeps billing until `make aws-down`.
+- AWS can take many hours to notice actual spend, so you can already be past $15 when it fires.
+- A stopped RDS instance **starts itself after 7 days**. The deny policy blocks *you* from calling `StartDBInstance`, but the RDS service can still restart it. If the cap has fired, run `make aws-down` or stop the instance again.
+- Attaching a managed policy directly to an Identity Center *provisioned* role can be wiped if you re-provision the permission set. If that happens, the budget action does not re-attach until you reset the action in **Billing → Budgets**.
+
+**After it fires.** Terraform apply as the SSO admin will fail for ECS/RDS/ALB changes until you detach `xmoney-demo-budget-hard-cap` from the role (IAM → Roles → `AWSReservedSSO_AdministratorAccess_*` → Permissions) and from `Admin` / `xmoney-demo-github-deploy` if attached. In **Budgets**, reset the action so it can run again next month. Then `make aws-down` if the ALB is still up.
+
 ## If a budget alert arrives
 
 1. Open **Cost Explorer**. Group by **Service**, filter `project = xmoney-kenya`, and set the granularity to **Daily**.
 2. If the cost is the ALB, RDS, or Fargate, the app stack is awake. Run `make aws-down` unless you are demoing.
 3. If a service appears that this stack does not use (for example EC2 instances, NAT gateways, or another region), something was created outside Terraform. Find it with **Billing → Bills → Charges by service** and delete it.
 4. If the forecast alert fires early in the month, that means "at this rate you will pass $20". It is the earliest warning, so act on it.
+5. If the **$15** mail says the hard-cap action ran, do not wait: `make aws-down` for the ALB. See **The $15 hard cap** above.

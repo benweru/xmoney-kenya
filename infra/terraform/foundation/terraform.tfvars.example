@@ -2,6 +2,8 @@
 alert_email = "you@example.com"
 
 # budget_alerts_usd           = [5, 10, 20]
+# budget_hard_cap_usd         = 15
+# budget_cap_iam_users        = ["Admin"]
 # github_repository           = "benweru/xmoney-kenya"
 # github_environment          = "demo"
 # create_github_oidc_provider = true

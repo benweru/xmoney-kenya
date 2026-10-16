@@ -1,11 +1,15 @@
-# Always-on, near-free pieces: cost alerts, the image registry, the GitHub deploy
-# role, and the Daraja sandbox secret. The app stack can be destroyed and rebuilt
-# around these without losing images, alerts, or keys.
+# Always-on, near-free pieces: cost alerts and the $15 hard cap, the image
+# registry, the GitHub deploy role, and the Daraja sandbox secret. The app stack
+# can be destroyed and rebuilt around these without losing images, alerts, or keys.
 
 terraform {
   required_version = ">= 1.10"
 
   required_providers {
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.7"
+    }
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.0"

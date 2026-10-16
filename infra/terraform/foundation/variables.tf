@@ -25,6 +25,23 @@ variable "budget_alerts_usd" {
   }
 }
 
+variable "budget_hard_cap_usd" {
+  description = "Actual monthly spend that emails, attaches a deny IAM policy, and runs the halt Lambda. SCPs cannot be used on this Organizations management account."
+  type        = number
+  default     = 15
+
+  validation {
+    condition     = var.budget_hard_cap_usd > 0
+    error_message = "budget_hard_cap_usd must be positive."
+  }
+}
+
+variable "budget_cap_iam_users" {
+  description = "IAM users that receive the hard-cap deny policy. Identity Center identities are roles, not users; include a leftover IAM admin user if you still have one."
+  type        = list(string)
+  default     = ["Admin"]
+}
+
 variable "github_repository" {
   description = "owner/name of the repository whose Actions may deploy."
   type        = string
