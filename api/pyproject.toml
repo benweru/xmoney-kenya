@@ -29,9 +29,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "hypothesis>=6.122",
   "mypy>=1.13",
   "pre-commit>=4.0",
   "pytest>=8.3",
+  "pytest-cov>=6.0",
   "ruff==0.17.0",  # keep in step with .pre-commit-config.yaml
 ]
 
