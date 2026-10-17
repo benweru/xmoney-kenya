@@ -25,3 +25,7 @@ crash.log
 infra/terraform/backend.hcl
 infra/terraform/*/terraform.tfvars
 infra/terraform/foundation/lambda/*.zip
+
+# generated / local-only
+tfplan
+.sf/
