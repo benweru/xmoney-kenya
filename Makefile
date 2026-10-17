@@ -1,5 +1,5 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
-	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups \
+	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups outbox-worker \
 	openapi e2e screenshots demo-seed demo-reset \
 	tf-check aws-bootstrap aws-foundation aws-plan aws-up aws-sleep aws-wake aws-down aws-run-job
 
@@ -98,6 +98,10 @@ demo-reset:
 # Check top-ups still waiting on M-PESA with STK Query.
 resolve-topups:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-resolve-topups
+
+# Run the outbox worker (retries, backoff, dead-letter queue). Ctrl-C stops it after the current job.
+outbox-worker:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-outbox-worker
 
 lint: lint-api lint-web
 

@@ -68,7 +68,8 @@ def test_the_mock_is_the_only_rail_by_default(client) -> None:
 def test_the_sandbox_rail_needs_portal_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PAYMENT_RAILS", '["mock", "sandbox"]')
     with pytest.raises(ValidationError, match="needs DARAJA_CONSUMER_KEY"):
-        Settings()
+        # A developer's real api/.env must not leak into this test.
+        Settings(_env_file=None)  # type: ignore[call-arg]
 
 
 def test_a_public_demo_must_restrict_the_sandbox_rail(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -11,6 +11,7 @@ from xmoney.db import Base
 from xmoney.identity import models as identity_models  # noqa: F401
 from xmoney.inbox import models as inbox_models  # noqa: F401
 from xmoney.ledger import models as ledger_models  # noqa: F401
+from xmoney.outbox import models as outbox_models  # noqa: F401
 from xmoney.payments import models as payments_models  # noqa: F401
 from xmoney.ratelimit import models as ratelimit_models  # noqa: F401
 from xmoney.transfers import models as transfers_models  # noqa: F401
