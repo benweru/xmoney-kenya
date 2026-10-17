@@ -77,7 +77,7 @@ def clean_tables(engine: Engine) -> Iterator[None]:
             conn.execute(
                 text(
                     "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users, "
-                    "sandbox_inbox, rate_limit_hits RESTART IDENTITY CASCADE"
+                    "sandbox_inbox, rate_limit_hits, outbox_jobs RESTART IDENTITY CASCADE"
                 )
             )
         with Session(engine) as session:

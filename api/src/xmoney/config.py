@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     stk_expire_after_seconds: int = 300
     stk_query_interval_seconds: int = 15
 
+    # Transactional outbox worker: a failed job waits base * 2^(attempt-1) seconds
+    # (capped), and goes to the dead-letter queue after max_attempts. A claimed job
+    # that is not finished within lease_seconds is handed to another worker.
+    outbox_max_attempts: int = Field(default=6, ge=1)
+    outbox_backoff_base_seconds: float = Field(default=5.0, gt=0)
+    outbox_backoff_cap_seconds: float = Field(default=900.0, gt=0)
+    outbox_lease_seconds: int = Field(default=60, ge=1)
+    outbox_poll_seconds: float = Field(default=1.0, gt=0)
+
     pin_max_attempts: int = 5
     pin_lockout_minutes: int = 15
     otp_ttl_seconds: int = 300
