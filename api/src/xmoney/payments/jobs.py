@@ -14,7 +14,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy.orm import Session
 
-from xmoney.db import get_sessionmaker
+from xmoney.db import get_sessionmaker, import_mapped_tables
 from xmoney.errors import ProviderError
 from xmoney.outbox.service import Claim, PermanentFailure
 from xmoney.outbox.worker import Handler
@@ -51,6 +51,7 @@ def production_handlers() -> dict[str, Handler]:
 
 
 def handle_stk_push(claim: Claim) -> None:
+    import_mapped_tables()
     rails = build_rails()
     try:
         with get_sessionmaker()() as session:

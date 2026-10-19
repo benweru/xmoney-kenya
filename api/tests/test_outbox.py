@@ -286,3 +286,4 @@ def test_concurrent_workers_never_run_the_same_job_twice(engine: Engine) -> None
 
 def _boom(_claim: Claim) -> None:
     raise RuntimeError("nope")
+
