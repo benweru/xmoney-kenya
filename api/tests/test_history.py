@@ -19,6 +19,7 @@ from xmoney.ledger.service import post_entry, post_entry_in_transaction
 from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import DarajaHttpProvider
 from xmoney.payments.daraja_mock import DarajaMockState, create_daraja_mock_app
+from xmoney.payments.jobs import send_due
 from xmoney.payments.topups import callback_url
 
 
@@ -61,7 +62,7 @@ def _walk(http: TestClient, limit: int) -> tuple[list[str], int]:
 
 
 @pytest.fixture
-def rail(client: TestClient) -> Iterator[DarajaMockState]:
+def rail(client: TestClient) -> Iterator[tuple[DarajaMockState, DarajaHttpProvider]]:
     from xmoney.main import app
     from xmoney.payments.deps import Rails, get_rails
 
@@ -77,22 +78,24 @@ def rail(client: TestClient) -> Iterator[DarajaMockState]:
     )
     app.dependency_overrides[get_rails] = lambda: Rails.of(provider)
     try:
-        yield state
+        yield state, provider
     finally:
         mock.close()
 
 
 def test_history_shows_top_ups_and_sends_to_their_owner_only(
-    client: TestClient, rail: DarajaMockState, sign_up
+    client: TestClient, rail: tuple[DarajaMockState, DarajaHttpProvider], sign_up, db: Session
 ) -> None:
     from xmoney.main import app
 
+    state, provider = rail
     sign_up("amina", "+254712345678")
     topup = client.post(
         "/v1/topups", json={"amount_cents": 50_000}, headers={"Idempotency-Key": "t1"}
     )
     assert topup.status_code == 201, topup.text
-    [attempt] = rail.attempts
+    send_due(db, provider)
+    [attempt] = state.attempts
     assert client.post(urlparse(callback_url()).path, json=attempt.payload).status_code == 200
     receipt = client.get(f"/v1/topups/{topup.json()['id']}").json()["mpesa_receipt_number"]
 
