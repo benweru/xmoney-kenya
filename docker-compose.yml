@@ -1,7 +1,7 @@
 # Disposable sandbox stack. Nothing in this stack is a production payment environment.
 # `docker compose up -d postgres` (make up) starts only the database for local development.
-# `docker compose --profile app up --build` (make demo) also runs the API and the web app
-# (http://localhost:3000, with the API at /api/ on the same origin).
+# `docker compose --profile app up --build` (make demo) also runs the API, the
+# outbox worker, and the web app (http://localhost:3000, with the API at /api/).
 services:
   postgres:
     image: postgres:16-alpine
@@ -23,6 +23,7 @@ services:
 
   api:
     profiles: ["app"]
+    image: xmoney-kenya-api
     build: ./api
     environment:
       SANDBOX_MODE: "true"
@@ -36,6 +37,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  worker:
+    profiles: ["app"]
+    image: xmoney-kenya-api
+    command: ["xmoney-outbox-worker"]
+    environment:
+      SANDBOX_MODE: "true"
+      DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
+      DARAJA_MOCK_BASE_URL: http://api:8000/sandbox/daraja
+      PUBLIC_BASE_URL: http://api:8000
+      DARAJA_MOCK_CALLBACK_BASE_URL: http://api:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
 
   # The static wallet app behind nginx, which also proxies /api/* to the API (same origin).
   web:

@@ -38,7 +38,7 @@ def create_topup(
     session: Session = Depends(get_db),
     rails: Rails = Depends(get_rails),
 ) -> JSONResponse:
-    """Send an STK Push to the phone. Poll GET /v1/topups/{id} for the result."""
+    """Queue an STK Push. Poll GET /v1/topups/{id} until the worker has sent it."""
     phone = normalize_phone(body.phone or user.phone_e164)
     view = start_topup(
         session,

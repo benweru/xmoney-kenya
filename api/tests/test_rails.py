@@ -13,6 +13,7 @@ from xmoney.errors import RailUnavailable
 from xmoney.identity.service import register_user
 from xmoney.payments.daraja import parse_stk_callback
 from xmoney.payments.deps import Rails, build_rails
+from xmoney.payments.jobs import send_due
 from xmoney.payments.models import Topup
 from xmoney.payments.provider import (
     AccessToken,
@@ -161,6 +162,7 @@ def test_each_top_up_is_queried_on_the_rail_that_took_it(db: Session) -> None:
         amount_cents=10_000,
         idempotency_key="k1",
     )
+    send_due(db, rails)
     assert view.rail == "sandbox"
     assert len(sandbox.pushes) == 1 and not mock.pushes
 
@@ -183,6 +185,7 @@ def test_a_top_up_on_a_rail_no_longer_offered_still_expires(db: Session) -> None
         amount_cents=10_000,
         idempotency_key="k1",
     )
+    send_due(db, sandbox)
     mock_only = Rails.of(CountingRail("mock"))
     topup = db.get(Topup, view.id)
     assert topup is not None

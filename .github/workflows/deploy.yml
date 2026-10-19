@@ -48,6 +48,8 @@ jobs:
             echo "CLUSTER=$(jq -r .cluster <<<"$config")"
             echo "API_SERVICE=$(jq -r .api_service <<<"$config")"
             echo "API_FAMILY=$(jq -r .api_family <<<"$config")"
+            echo "WORKER_SERVICE=$(jq -r .worker_service <<<"$config")"
+            echo "WORKER_FAMILY=$(jq -r .worker_family <<<"$config")"
             echo "JOB_FAMILIES=$(jq -c .job_families <<<"$config")"
             echo "SCHEDULE_GROUP=$(jq -r .schedule_group <<<"$config")"
             echo "WEB_BUCKET=$(jq -r .web_bucket <<<"$config")"
@@ -85,6 +87,7 @@ jobs:
               --query taskDefinition.taskDefinitionArn --output text
           }
           echo "API_TASK_DEF=$(register "$API_FAMILY")" >> "$GITHUB_ENV"
+          echo "WORKER_TASK_DEF=$(register "$WORKER_FAMILY")" >> "$GITHUB_ENV"
           jobs='{}'
           for name in $(jq -r 'keys[]' <<<"$JOB_FAMILIES"); do
             arn=$(register "$(jq -r --arg n "$name" '.[$n]' <<<"$JOB_FAMILIES")")
@@ -97,6 +100,9 @@ jobs:
           aws ecs update-service --cluster "$CLUSTER" --service "$API_SERVICE" \
             --task-definition "$API_TASK_DEF" >/dev/null
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$API_SERVICE"
+          aws ecs update-service --cluster "$CLUSTER" --service "$WORKER_SERVICE" \
+            --task-definition "$WORKER_TASK_DEF" >/dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$WORKER_SERVICE"
 
       - name: Point the schedules at the new job revisions
         run: |

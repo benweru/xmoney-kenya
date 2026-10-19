@@ -32,6 +32,8 @@ from xmoney.ledger import models as ledger_models  # noqa: F401
 from xmoney.ledger.service import seed_system_accounts
 from xmoney.payments import models as payments_models  # noqa: F401
 from xmoney.payments.daraja import parse_stk_callback
+from xmoney.payments.jobs import send_due
+from xmoney.payments.models import Topup
 from xmoney.payments.provider import (
     AccessToken,
     StkCallback,
@@ -150,8 +152,10 @@ def _seed_topup(
         amount_cents=kes * 100,
         idempotency_key=key,
     )
-    assert view.checkout_request_id is not None
-    receipt = "SBOXSEED" + view.checkout_request_id[-4:]
+    send_due(session, rail)
+    seeded = session.get(Topup, view.id, populate_existing=True)
+    assert seeded is not None and seeded.checkout_request_id is not None
+    receipt = "SBOXSEED" + seeded.checkout_request_id[-4:]
     handle_stk_callback(
         session,
         rail,
@@ -159,7 +163,7 @@ def _seed_topup(
             "Body": {
                 "stkCallback": {
                     "MerchantRequestID": "seed",
-                    "CheckoutRequestID": view.checkout_request_id,
+                    "CheckoutRequestID": seeded.checkout_request_id,
                     "ResultCode": 0,
                     "ResultDesc": "The service request is processed successfully.",
                     "CallbackMetadata": {

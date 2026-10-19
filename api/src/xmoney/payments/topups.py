@@ -1,11 +1,13 @@
 """STK Push top-ups: start, record callbacks, and credit only after STK Query.
 
-Rail calls never run inside a database transaction. Each state change locks
-the top-up row, so a callback, a duplicate of it, and an STK Query answer are
-applied one at a time. A success callback is evidence that something arrived;
-the wallet is credited only when STK Query for that CheckoutRequestID says
-the payment succeeded. Failure callbacks still fail the top-up immediately.
-The wallet credit is posted in the same transaction as the status change.
+POST /v1/topups writes the top-up and an outbox job in one transaction. The
+worker calls the rail; this module never does on the request path. Rail calls
+never run inside a database transaction. Each state change locks the top-up
+row, so a callback, a duplicate of it, and an STK Query answer are applied
+one at a time. A success callback is evidence that something arrived; the
+wallet is credited only when STK Query for that CheckoutRequestID says the
+payment succeeded. Failure callbacks still fail the top-up immediately. The
+wallet credit is posted in the same transaction as the status change.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import parse_stk_callback
 from xmoney.payments.deps import Rails
 from xmoney.payments.models import CallbackDisposition, StkCallbackLog, Topup, TopupStatus
-from xmoney.payments.provider import PaymentsProvider, StkPushAccepted, StkPushRequest
+from xmoney.payments.provider import PaymentsProvider, StkPushAccepted
 from xmoney.payments.state import FINAL, transition
 
 logger = logging.getLogger("xmoney.topups")
@@ -106,7 +108,11 @@ def start_topup(
     idempotency_key: str,
     now: datetime | None = None,
 ) -> TopupView:
-    """Create the top-up and send the STK Push. Replaying the key returns the same top-up."""
+    """Create the top-up and an outbox job. Replaying the key returns the same top-up.
+
+    The rail call is the worker's job. This returns `initiated` until the worker
+    records that Daraja accepted or refused the push.
+    """
     amount = _require_topup_amount(amount_cents)
     key = require_idempotency_key(idempotency_key)
     phone_e164 = normalize_phone(phone)
@@ -124,29 +130,7 @@ def start_topup(
         provider_name=provider.name,
         now=now,
     )
-    if topup.status != TopupStatus.INITIATED:
-        return _view(topup, replay=not created)
-    topup_id = topup.id
-    release_read_transaction(session)
-
-    try:
-        accepted = provider.stk_push(
-            StkPushRequest(
-                amount_cents=amount,
-                phone_e164=phone_e164,
-                account_reference=_ACCOUNT_REFERENCE,
-                description=_DESCRIPTION,
-                callback_url=callback_url(provider.name),
-                idempotency_key=f"topup:{topup_id}",
-            )
-        )
-    except ProviderError as exc:
-        if 400 <= exc.http_status < 500:
-            return _view(_record_refusal(session, topup_id, str(exc), now), replay=not created)
-        raise
-    except httpx.HTTPError as exc:
-        raise ProviderError("M-PESA did not answer; retry with the same Idempotency-Key") from exc
-    return _view(_record_accepted(session, provider, topup_id, accepted, now), replay=not created)
+    return _view(topup, replay=not created)
 
 
 def handle_stk_callback(
@@ -352,6 +336,10 @@ def _create_or_replay(
                     updated_at=now,
                 )
                 session.add(topup)
+                session.flush()
+                from xmoney.payments.jobs import enqueue_stk_push
+
+                enqueue_stk_push(session, topup.id, now=now)
             return topup, True
         except IntegrityError as exc:
             if getattr(exc.orig, "sqlstate", None) != _UNIQUE_VIOLATION:

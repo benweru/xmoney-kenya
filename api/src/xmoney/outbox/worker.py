@@ -118,7 +118,9 @@ def run_forever(
 
 def default_handlers() -> dict[str, Handler]:
     """Job kinds this worker serves. Feature modules register theirs here."""
-    return {}
+    from xmoney.payments.jobs import production_handlers
+
+    return production_handlers()
 
 
 def main() -> None:

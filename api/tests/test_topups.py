@@ -25,6 +25,7 @@ from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.payments.daraja import DarajaHttpProvider, parse_stk_callback
 from xmoney.payments.daraja_mock import DarajaMockState, create_daraja_mock_app
 from xmoney.payments.deps import Rails
+from xmoney.payments.jobs import send_due
 from xmoney.payments.models import StkCallbackLog, Topup, TopupStatus
 from xmoney.payments.provider import (
     AccessToken,
@@ -152,6 +153,18 @@ def _user(db: Session, phone: str = "+254712345678") -> RegisteredUser:
 
 
 def _start(db: Session, provider: Any, user: RegisteredUser, *, key: str = "k1") -> TopupView:
+    view = start_topup(
+        db,
+        provider,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=AMOUNT,
+        idempotency_key=key,
+    )
+    send_due(db, provider)
+    topup = db.get(Topup, view.id, populate_existing=True)
+    assert topup is not None
     return start_topup(
         db,
         provider,
@@ -186,6 +199,26 @@ def _later(db: Session, topup_id: UUID, seconds: int) -> datetime:
     return created.created_at + timedelta(seconds=seconds)
 
 
+def test_creating_a_top_up_does_not_call_the_rail(db: Session) -> None:
+    rail = ScriptedRail()
+    user = _user(db)
+    view = start_topup(
+        db,
+        rail,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=AMOUNT,
+        idempotency_key="k1",
+    )
+    assert view.status is TopupStatus.INITIATED
+    assert rail.pushes == 0
+    send_due(db, rail)
+    assert rail.pushes == 1
+    topup = db.get(Topup, view.id, populate_existing=True)
+    assert topup is not None and topup.status == "pending"
+
+
 def test_top_up_over_http_credits_the_wallet_once(
     api: TestClient, rail, sign_up, db: Session
 ) -> None:
@@ -195,7 +228,9 @@ def test_top_up_over_http_credits_the_wallet_once(
         "/v1/topups", json={"amount_cents": AMOUNT}, headers={"Idempotency-Key": "k1"}
     )
     assert created.status_code == 201, created.text
-    topup = created.json()
+    assert created.json()["status"] == "initiated"
+    send_due(db, rail[1])
+    topup = api.get(f"/v1/topups/{created.json()['id']}").json()
     assert topup["status"] == "pending"
     assert topup["phone"] == "+254712345000"
 
@@ -406,14 +441,15 @@ def test_an_unknown_callback_is_acknowledged_and_logged(api: TestClient) -> None
 
 
 def test_a_forged_success_callback_over_http_credits_nothing(
-    api: TestClient, rail, sign_up
+    api: TestClient, rail, sign_up, db: Session
 ) -> None:
     me = sign_up("amina", "+254712345032")
     created = api.post(
         "/v1/topups", json={"amount_cents": AMOUNT}, headers={"Idempotency-Key": "k1"}
     )
     assert created.status_code == 201, created.text
-    topup = created.json()
+    send_due(db, rail[1])
+    topup = api.get(f"/v1/topups/{created.json()['id']}").json()
     forged = _callback(topup["checkout_request_id"])
     ack = api.post(_callback_path(), json=forged)
     assert ack.status_code == 200
@@ -442,12 +478,16 @@ def test_a_forged_success_callback_with_the_correct_token_credits_nothing(
     assert _entries(db) == 0
 
 
-def test_a_callback_without_the_secret_token_is_ignored(api: TestClient, rail, sign_up) -> None:
+def test_a_callback_without_the_secret_token_is_ignored(
+    api: TestClient, rail, sign_up, db: Session
+) -> None:
     state, _provider = rail
     me = sign_up("amina", "+254712345000")
-    topup = api.post(
+    created = api.post(
         "/v1/topups", json={"amount_cents": AMOUNT}, headers={"Idempotency-Key": "k1"}
-    ).json()
+    )
+    send_due(db, rail[1])
+    topup = api.get(f"/v1/topups/{created.json()['id']}").json()
     forged = _callback(topup["checkout_request_id"])
     for path in ("/v1/payments/stk/callback/" + "0" * 32, "/v1/payments/stk/callback"):
         assert api.post(path, json=forged).status_code in (404, 405)
@@ -465,19 +505,40 @@ def test_a_refused_push_fails_the_top_up(db: Session) -> None:
     assert view.result_desc == "Invalid Access Token"
 
 
-def test_an_unanswered_push_can_be_retried_with_the_same_key(db: Session) -> None:
+def test_an_unanswered_push_is_retried_by_the_worker(db: Session) -> None:
     rail = ScriptedRail()
     rail.push_error = httpx.ConnectError("connection refused")
     user = _user(db)
-    with pytest.raises(ProviderError):
-        _start(db, rail, user)
-    topup = db.scalar(select(Topup))
+    view = start_topup(
+        db,
+        rail,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=AMOUNT,
+        idempotency_key="k1",
+    )
+    assert view.status is TopupStatus.INITIATED
+    first = datetime.now(UTC)
+    send_due(db, rail, now=first)
+    topup = db.get(Topup, view.id, populate_existing=True)
     assert topup is not None and topup.status == "initiated"
+    assert rail.pushes == 1
 
     rail.push_error = None
-    retried = _start(db, rail, user)
-    assert retried.id == topup.id
-    assert retried.status is TopupStatus.PENDING
+    replay = start_topup(
+        db,
+        rail,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=AMOUNT,
+        idempotency_key="k1",
+    )
+    assert replay.id == view.id
+    send_due(db, rail, now=first + timedelta(seconds=30))
+    again = db.get(Topup, view.id, populate_existing=True)
+    assert again is not None and again.status == "pending"
     assert rail.pushes == 2
 
 
@@ -485,10 +546,18 @@ def test_a_push_that_never_gets_through_expires(db: Session) -> None:
     rail = ScriptedRail()
     rail.push_error = httpx.ConnectError("connection refused")
     user = _user(db)
-    with pytest.raises(ProviderError):
-        _start(db, rail, user)
-    topup = db.scalar(select(Topup))
-    assert topup is not None
+    view = start_topup(
+        db,
+        rail,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=AMOUNT,
+        idempotency_key="k1",
+    )
+    send_due(db, rail)
+    topup = db.get(Topup, view.id, populate_existing=True)
+    assert topup is not None and topup.status == "initiated"
     expired = resolve_topup(db, rail, topup.id, now=_later(db, topup.id, 301))
     assert expired.status == "expired"
 
