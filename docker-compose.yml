@@ -1,7 +1,7 @@
 # Disposable sandbox stack. Nothing in this stack is a production payment environment.
 # `docker compose up -d postgres` (make up) starts only the database for local development.
-# `docker compose --profile app up --build` (make demo) also runs the API and the web app
-# (http://localhost:3000, with the API at /api/ on the same origin).
+# `docker compose --profile app up --build` (make demo) also runs the API, the
+# outbox worker, and the web app (http://localhost:3000, with the API at /api/).
 services:
   postgres:
     image: postgres:16-alpine
@@ -23,18 +23,50 @@ services:
 
   api:
     profiles: ["app"]
+    image: xmoney-kenya-api
     build: ./api
     environment:
       SANDBOX_MODE: "true"
       DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
       # The API serves the Daraja mock itself, so it calls its own port.
       DARAJA_MOCK_BASE_URL: http://127.0.0.1:8000/sandbox/daraja
+      # Shared with the worker: a random token per process would 404 every mock callback.
+      STK_CALLBACK_TOKEN: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       # The web container's nginx proxies /api/* here and appends to X-Forwarded-For.
       TRUSTED_PROXY_HOPS: "1"
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
     depends_on:
       postgres:
+        condition: service_healthy
+
+  worker:
+    profiles: ["app"]
+    image: xmoney-kenya-api
+    command: ["xmoney-outbox-worker"]
+    environment:
+      SANDBOX_MODE: "true"
+      DATABASE_URL: postgresql+psycopg://xmoney:xmoney@postgres:5432/xmoney
+      DARAJA_MOCK_BASE_URL: http://api:8000/sandbox/daraja
+      PUBLIC_BASE_URL: http://api:8000
+      DARAJA_MOCK_CALLBACK_BASE_URL: http://api:8000
+      STK_CALLBACK_TOKEN: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
         condition: service_healthy
 
   # The static wallet app behind nginx, which also proxies /api/* to the API (same origin).

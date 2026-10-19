@@ -15,6 +15,22 @@ class Base(DeclarativeBase):
     pass
 
 
+def import_mapped_tables() -> None:
+    """Register every mapped table on Base. Isolated processes (the worker) need this.
+
+    A process that only imports `Topup` cannot resolve `topups.user_id` until `User`
+    is imported. The API loads models through routes; the worker does not.
+    """
+    from xmoney.auth import models as auth_models  # noqa: F401
+    from xmoney.identity import models as identity_models  # noqa: F401
+    from xmoney.inbox import models as inbox_models  # noqa: F401
+    from xmoney.ledger import models as ledger_models  # noqa: F401
+    from xmoney.outbox import models as outbox_models  # noqa: F401
+    from xmoney.payments import models as payments_models  # noqa: F401
+    from xmoney.ratelimit import models as ratelimit_models  # noqa: F401
+    from xmoney.transfers import models as transfers_models  # noqa: F401
+
+
 _engine: Engine | None = None
 _sessionmaker: sessionmaker[Session] | None = None
 

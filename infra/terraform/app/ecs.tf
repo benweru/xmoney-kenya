@@ -1,7 +1,7 @@
-# One image, three task definitions: the API service (which also serves the Daraja
-# mock), and two scheduled jobs. Each has its own execution role, which reads only
-# the secrets that task needs, and its own task role, which has no AWS permissions
-# because the code calls no AWS APIs. See docs/adr/007-aws-iam-design.md.
+# One image, four task definitions: the API service (which also serves the Daraja
+# mock), the outbox worker, and two scheduled jobs. Each has its own execution
+# role, which reads only the secrets that task needs, and its own task role, which
+# has no AWS permissions because the code calls no AWS APIs. See docs/adr/007.
 
 resource "aws_ecs_cluster" "main" {
   name = local.name
@@ -63,6 +63,10 @@ locals {
       log_group = aws_cloudwatch_log_group.jobs.arn
       secrets   = concat([aws_secretsmanager_secret.db.arn], local.daraja_secret_arns)
     }
+    worker = {
+      log_group = aws_cloudwatch_log_group.jobs.arn
+      secrets   = concat([aws_secretsmanager_secret.db.arn, aws_secretsmanager_secret.app.arn], local.daraja_secret_arns)
+    }
   }
 }
 
@@ -111,7 +115,7 @@ resource "aws_iam_role_policy" "execution" {
 }
 
 resource "aws_iam_role" "task" {
-  for_each = toset(["api", "jobs"])
+  for_each = toset(["api", "jobs", "worker"])
 
   name               = "${local.name}-${each.key}-task"
   description        = "Runtime identity of ${each.key} containers. No permissions: the code calls no AWS APIs."
@@ -178,6 +182,11 @@ locals {
       secrets = local.db_secrets
     }
   }
+
+  worker_env = local.resolve_env
+  worker_secrets = merge(local.db_secrets, local.daraja_secrets, {
+    STK_CALLBACK_TOKEN = aws_secretsmanager_secret.app.arn
+  })
 }
 
 # ---- Task definitions -------------------------------------------------------------
@@ -298,4 +307,67 @@ resource "aws_ecs_service" "api" {
   }
 
   depends_on = [aws_lb_listener_rule.from_cloudfront, aws_ecs_cluster_capacity_providers.main]
+}
+
+resource "aws_ecs_task_definition" "worker" {
+  family                   = "${local.name}-worker"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  execution_role_arn       = aws_iam_role.execution["worker"].arn
+  task_role_arn            = aws_iam_role.task["worker"].arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([{
+    name        = "worker"
+    image       = local.api_image
+    essential   = true
+    command     = ["xmoney-outbox-worker"]
+    environment = [for k, v in local.worker_env : { name = k, value = v }]
+    secrets     = [for k, v in local.worker_secrets : { name = k, valueFrom = v }]
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.jobs.name
+        awslogs-region        = var.region
+        awslogs-stream-prefix = "worker"
+      }
+    }
+  }])
+}
+
+resource "aws_ecs_service" "worker" {
+  name                   = "worker"
+  cluster                = aws_ecs_cluster.main.id
+  task_definition        = aws_ecs_task_definition.worker.arn
+  desired_count          = var.awake ? 1 : 0
+  enable_execute_command = false
+  propagate_tags         = "SERVICE"
+
+  capacity_provider_strategy {
+    capacity_provider = "FARGATE_SPOT"
+    weight            = 1
+  }
+
+  network_configuration {
+    subnets          = aws_subnet.public[*].id
+    security_groups  = [aws_security_group.tasks.id]
+    assign_public_ip = true
+  }
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
+  depends_on = [aws_ecs_cluster_capacity_providers.main]
 }

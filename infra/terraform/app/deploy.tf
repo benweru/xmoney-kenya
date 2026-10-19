@@ -19,9 +19,9 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid       = "RollApiService"
+    sid       = "RollServices"
     actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
-    resources = [aws_ecs_service.api.id]
+    resources = [aws_ecs_service.api.id, aws_ecs_service.worker.id]
   }
 
   statement {
@@ -88,6 +88,8 @@ resource "aws_ssm_parameter" "deploy" {
     cluster         = aws_ecs_cluster.main.name
     api_service     = aws_ecs_service.api.name
     api_family      = aws_ecs_task_definition.api.family
+    worker_service  = aws_ecs_service.worker.name
+    worker_family   = aws_ecs_task_definition.worker.family
     job_families    = { for name, job in aws_ecs_task_definition.job : name => job.family }
     schedule_group  = aws_scheduler_schedule_group.main.name
     schedules       = keys(aws_scheduler_schedule.job)

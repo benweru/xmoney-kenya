@@ -367,7 +367,7 @@ export interface paths {
     put?: never;
     /**
      * Create Topup
-     * @description Send an STK Push to the phone. Poll GET /v1/topups/{id} for the result.
+     * @description Queue an STK Push. Poll GET /v1/topups/{id} until the worker has sent it.
      */
     post: operations["create_topup_v1_topups_post"];
     delete?: never;

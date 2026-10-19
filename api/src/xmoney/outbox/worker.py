@@ -18,7 +18,7 @@ from enum import StrEnum
 from sqlalchemy.orm import Session
 
 from xmoney.config import get_settings
-from xmoney.db import get_sessionmaker
+from xmoney.db import get_sessionmaker, import_mapped_tables
 from xmoney.outbox import service
 from xmoney.outbox.service import Claim, PermanentFailure
 
@@ -118,7 +118,10 @@ def run_forever(
 
 def default_handlers() -> dict[str, Handler]:
     """Job kinds this worker serves. Feature modules register theirs here."""
-    return {}
+    import_mapped_tables()
+    from xmoney.payments.jobs import production_handlers
+
+    return production_handlers()
 
 
 def main() -> None:

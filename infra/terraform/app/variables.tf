@@ -16,7 +16,7 @@ variable "api_image_tag" {
 }
 
 variable "awake" {
-  description = "False scales the API to 0 tasks, stops RDS, and pauses the schedules (make aws-sleep)."
+  description = "False scales the API and worker to 0 tasks, stops RDS, and pauses the schedules (make aws-sleep)."
   type        = bool
   default     = true
 }

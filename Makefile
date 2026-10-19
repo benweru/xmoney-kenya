@@ -32,7 +32,7 @@ up:
 	done; \
 	echo "Postgres did not become ready"; exit 1
 
-# Postgres, the API (which serves the Daraja mock), and the web app, all in containers.
+# Postgres, the API (which serves the Daraja mock), the outbox worker, and the web app.
 demo:
 	docker compose --profile app up --build
 
