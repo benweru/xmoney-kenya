@@ -1,6 +1,76 @@
 {
   "components": {
     "schemas": {
+      "B2cPaymentBody": {
+        "properties": {
+          "Amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "CommandID": {
+            "title": "Commandid",
+            "type": "string"
+          },
+          "InitiatorName": {
+            "title": "Initiatorname",
+            "type": "string"
+          },
+          "Occasion": {
+            "title": "Occasion",
+            "type": "string"
+          },
+          "OriginatorConversationID": {
+            "title": "Originatorconversationid",
+            "type": "string"
+          },
+          "PartyA": {
+            "title": "Partya",
+            "type": "string"
+          },
+          "PartyB": {
+            "title": "Partyb",
+            "type": "string"
+          },
+          "QueueTimeOutURL": {
+            "title": "Queuetimeouturl",
+            "type": "string"
+          },
+          "Remarks": {
+            "title": "Remarks",
+            "type": "string"
+          },
+          "ResultURL": {
+            "title": "Resulturl",
+            "type": "string"
+          },
+          "SecurityCredential": {
+            "title": "Securitycredential",
+            "type": "string"
+          }
+        },
+        "required": [
+          "OriginatorConversationID",
+          "InitiatorName",
+          "SecurityCredential",
+          "CommandID",
+          "Amount",
+          "PartyA",
+          "PartyB",
+          "Remarks",
+          "QueueTimeOutURL",
+          "ResultURL",
+          "Occasion"
+        ],
+        "title": "B2cPaymentBody",
+        "type": "object"
+      },
       "BalanceOut": {
         "properties": {
           "account_id": {
@@ -66,6 +136,160 @@
           }
         },
         "title": "BehaviorIn",
+        "type": "object"
+      },
+      "CashoutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_cents": {
+            "examples": [
+              50000
+            ],
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The M-PESA line to pay. Defaults to the signed-in user's phone.",
+            "examples": [
+              "+254708374149"
+            ],
+            "title": "Phone"
+          },
+          "rail": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mock",
+                  "sandbox"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rail for the B2C payment. Defaults to GET /v1/payment-rails `default`.",
+            "title": "Rail"
+          }
+        },
+        "required": [
+          "amount_cents"
+        ],
+        "title": "CashoutIn",
+        "type": "object"
+      },
+      "CashoutOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "title": "Idempotent Replay",
+            "type": "boolean"
+          },
+          "mpesa_receipt_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Receipt Number"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "rail": {
+            "title": "Rail",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "result_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Code"
+          },
+          "result_desc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Desc"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "rail",
+          "amount_cents",
+          "phone",
+          "conversation_id",
+          "mpesa_receipt_number",
+          "result_code",
+          "result_desc",
+          "created_at",
+          "resolved_at",
+          "idempotent_replay"
+        ],
+        "title": "CashoutOut",
         "type": "object"
       },
       "ChallengeOut": {
@@ -1085,6 +1309,42 @@
         "summary": "Control Health"
       }
     },
+    "/sandbox/daraja/mpesa/b2c/v1/paymentrequest": {
+      "post": {
+        "operationId": "b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/B2cPaymentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "B2C Payment"
+      }
+    },
     "/sandbox/daraja/mpesa/stkpush/v1/processrequest": {
       "post": {
         "operationId": "stk_push_sandbox_daraja_mpesa_stkpush_v1_processrequest_post",
@@ -1337,6 +1597,113 @@
         ]
       }
     },
+    "/v1/cashouts": {
+      "post": {
+        "description": "Hold wallet funds and queue a B2C payment. Poll GET /v1/cashouts/{id}.",
+        "operationId": "create_cashout_v1_cashouts_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CashoutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashoutOut"
+                }
+              }
+            },
+            "description": "Idempotent replay"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Cashout",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/cashouts/{cashout_id}": {
+      "get": {
+        "description": "Current state. A cash-out waiting too long is expired or released here.",
+        "operationId": "read_cashout_v1_cashouts__cashout_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cashout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cashout Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Cashout",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
     "/v1/handles/{handle}": {
       "get": {
         "operationId": "get_handle_v1_handles__handle__get",
@@ -1501,6 +1868,120 @@
           }
         },
         "summary": "List Rails",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/payments/b2c/result/{token}": {
+      "post": {
+        "description": "Daraja's B2C result. Success settles the hold; failure releases it.",
+        "operationId": "b2c_result_v1_payments_b2c_result__token__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response B2C Result V1 Payments B2C Result  Token  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "B2C Result",
+        "tags": [
+          "top-ups"
+        ]
+      }
+    },
+    "/v1/payments/b2c/timeout/{token}": {
+      "post": {
+        "description": "Daraja's B2C timeout. The hold stays in clearing until a late result or staff.",
+        "operationId": "b2c_timeout_v1_payments_b2c_timeout__token__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response B2C Timeout V1 Payments B2C Timeout  Token  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "B2C Timeout",
         "tags": [
           "top-ups"
         ]

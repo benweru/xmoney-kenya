@@ -17,13 +17,13 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import case, func, select, tuple_
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.orm import Session, aliased
 
 from xmoney.errors import InvalidCursor
 from xmoney.identity.models import User
 from xmoney.ledger.models import Posting
-from xmoney.payments.models import Topup
+from xmoney.payments.models import Cashout, Topup
 from xmoney.transfers.models import Transfer
 
 DEFAULT_LIMIT = 20
@@ -32,6 +32,8 @@ MAX_LIMIT = 100
 
 class ItemKind(StrEnum):
     TOPUP = "topup"
+    CASHOUT = "cashout"
+    CASHOUT_RETURN = "cashout_return"
     TRANSFER_IN = "transfer_in"
     TRANSFER_OUT = "transfer_out"
     OTHER = "other"
@@ -101,6 +103,7 @@ def wallet_history(
     entry_ids = [row[1] for row in rows]
     transfers = _transfers_by_entry(session, entry_ids)
     receipts = _topup_receipts_by_entry(session, entry_ids)
+    cashouts = _cashouts_by_entry(session, entry_ids)
 
     items: list[HistoryItem] = []
     for created_at, entry_id, amount in rows:
@@ -113,6 +116,8 @@ def wallet_history(
                 kind, counterparty = ItemKind.TRANSFER_IN, sender
         elif entry_id in receipts:
             kind, receipt = ItemKind.TOPUP, receipts[entry_id]
+        elif entry_id in cashouts:
+            kind, receipt = cashouts[entry_id]
         items.append(
             HistoryItem(
                 entry_id=entry_id,
@@ -160,3 +165,28 @@ def _topup_receipts_by_entry(session: Session, entry_ids: list[UUID]) -> dict[UU
         )
     ).all()
     return {row[0]: row[1] for row in rows if row[0] is not None}
+
+
+def _cashouts_by_entry(
+    session: Session, entry_ids: list[UUID]
+) -> dict[UUID, tuple[ItemKind, str | None]]:
+    if not entry_ids:
+        return {}
+    rows = session.execute(
+        select(
+            Cashout.hold_journal_entry_id,
+            Cashout.release_journal_entry_id,
+            Cashout.mpesa_receipt_number,
+        ).where(
+            or_(
+                Cashout.hold_journal_entry_id.in_(entry_ids),
+                Cashout.release_journal_entry_id.in_(entry_ids),
+            )
+        )
+    ).all()
+    mapped: dict[UUID, tuple[ItemKind, str | None]] = {}
+    for hold_id, release_id, receipt in rows:
+        mapped[hold_id] = (ItemKind.CASHOUT, receipt)
+        if release_id is not None:
+            mapped[release_id] = (ItemKind.CASHOUT_RETURN, None)
+    return mapped

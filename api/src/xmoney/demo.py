@@ -6,9 +6,10 @@ recreates the system accounts, and seeds again. EventBridge Scheduler runs the
 reset at 03:00 Nairobi time on AWS.
 
 Seed top-ups go through the real top-up code with a rail that approves at
-once, and seed sends go through the real transfer code, so the history a
-visitor sees is the same shape as their own. Seed wallets have no PIN unless
-DEMO_SEED_PIN is set, so nobody can sign in as them on the public demo.
+once, seed sends go through the real transfer code, and one seed cash-out
+goes through the real B2C hold, so the history a visitor sees is the same
+shape as their own. Seed wallets have no PIN unless DEMO_SEED_PIN is set, so
+nobody can sign in as them on the public demo.
 """
 
 from __future__ import annotations
@@ -31,11 +32,15 @@ from xmoney.inbox import models as inbox_models  # noqa: F401
 from xmoney.ledger import models as ledger_models  # noqa: F401
 from xmoney.ledger.service import seed_system_accounts
 from xmoney.payments import models as payments_models  # noqa: F401
-from xmoney.payments.daraja import parse_stk_callback
+from xmoney.payments.cashouts import handle_b2c_callback, start_cashout
+from xmoney.payments.daraja import parse_b2c_result, parse_stk_callback
 from xmoney.payments.jobs import send_due
-from xmoney.payments.models import Topup
+from xmoney.payments.models import Cashout, Topup
 from xmoney.payments.provider import (
     AccessToken,
+    B2cAccepted,
+    B2cPaymentRequest,
+    B2cResult,
     StkCallback,
     StkPushAccepted,
     StkPushRequest,
@@ -98,6 +103,18 @@ class SeedRail:
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
 
+    def b2c_payment(self, request: B2cPaymentRequest) -> B2cAccepted:
+        n = next(self._ids)
+        return B2cAccepted(
+            conversation_id=f"AG_SEED{n:06d}",
+            originator_conversation_id=request.originator_conversation_id,
+            response_code="0",
+            response_description="Accept the service request successfully.",
+        )
+
+    def parse_b2c_result(self, payload: object) -> B2cResult:
+        return parse_b2c_result(payload)
+
 
 def seed(session: Session) -> bool:
     """Add the demo wallets and their history. Returns False if they are already there."""
@@ -125,6 +142,7 @@ def seed(session: Session) -> bool:
             idempotency_key=f"seed:send:{i}",
             note=note,
         )
+    _seed_cashout(session, rail, users["amina"], 500, key="seed:cashout:amina")
     return True
 
 
@@ -176,6 +194,45 @@ def _seed_topup(
                 }
             }
         },
+    )
+
+
+def _seed_cashout(
+    session: Session, rail: SeedRail, user: RegisteredUser, kes: int, *, key: str
+) -> None:
+    view = start_cashout(
+        session,
+        rail,
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        phone=user.phone_e164,
+        amount_cents=kes * 100,
+        idempotency_key=key,
+    )
+    send_due(session, rail)
+    seeded = session.get(Cashout, view.id, populate_existing=True)
+    assert seeded is not None
+    receipt = "SBOXCASH" + seeded.originator_conversation_id[-4:]
+    handle_b2c_callback(
+        session,
+        rail,
+        {
+            "Result": {
+                "ResultType": 0,
+                "ResultCode": 0,
+                "ResultDesc": "The service request is processed successfully.",
+                "OriginatorConversationID": seeded.originator_conversation_id,
+                "ConversationID": seeded.conversation_id,
+                "TransactionID": receipt,
+                "ResultParameters": {
+                    "ResultParameter": [
+                        {"Key": "TransactionAmount", "Value": kes},
+                        {"Key": "TransactionReceipt", "Value": receipt},
+                    ]
+                },
+            }
+        },
+        timed_out=False,
     )
 
 

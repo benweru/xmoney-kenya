@@ -93,13 +93,17 @@ def _built(provider: PaymentsProvider) -> Callable[[], PaymentsProvider]:
 
 def _mock() -> DarajaHttpProvider:
     # The mock checks only that credentials are present, so these are fixed.
+    settings = get_settings()
     return DarajaHttpProvider(
         name="mock",
-        base_url=get_settings().daraja_mock_base_url,
+        base_url=settings.daraja_mock_base_url,
         consumer_key="sandbox",
         consumer_secret="sandbox",
         shortcode="174379",
         passkey="sandbox-passkey",
+        initiator_name=settings.daraja_initiator_name,
+        security_credential=settings.daraja_security_credential,
+        b2c_shortcode=settings.daraja_b2c_shortcode or "174379",
     )
 
 
@@ -112,6 +116,9 @@ def _sandbox() -> DarajaHttpProvider:
         consumer_secret=settings.daraja_consumer_secret,
         shortcode=settings.daraja_shortcode,
         passkey=settings.daraja_passkey,
+        initiator_name=settings.daraja_initiator_name,
+        security_credential=settings.daraja_security_credential,
+        b2c_shortcode=settings.daraja_b2c_shortcode or settings.daraja_shortcode,
     )
 
 

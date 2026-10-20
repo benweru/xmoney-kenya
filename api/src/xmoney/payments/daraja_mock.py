@@ -71,6 +71,20 @@ _SUFFIX_RULES: dict[str, tuple[Outcome, bool]] = {
 
 
 @dataclass
+class B2cRecord:
+    idempotency_key: str | None
+    fingerprint: str
+    originator_conversation_id: str
+    conversation_id: str
+    phone: str
+    amount_shillings: int
+    result_url: str
+    timeout_url: str
+    outcome: Outcome = Outcome.SUCCESS
+    completes_at: float = 0.0
+
+
+@dataclass
 class StkRecord:
     idempotency_key: str | None
     fingerprint: str
@@ -96,8 +110,11 @@ class DarajaMockState:
     tokens: dict[str, float] = field(default_factory=dict)
     records_by_key: dict[str, StkRecord] = field(default_factory=dict)
     records_by_checkout: dict[str, StkRecord] = field(default_factory=dict)
+    b2c_by_key: dict[str, B2cRecord] = field(default_factory=dict)
+    b2c_by_originator: dict[str, B2cRecord] = field(default_factory=dict)
     attempts: list[CallbackAttempt] = field(default_factory=list)
     last_stk_body: dict[str, object] | None = None
+    last_b2c_body: dict[str, object] | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def reset(self) -> None:
@@ -106,8 +123,11 @@ class DarajaMockState:
             self.tokens.clear()
             self.records_by_key.clear()
             self.records_by_checkout.clear()
+            self.b2c_by_key.clear()
+            self.b2c_by_originator.clear()
             self.attempts.clear()
             self.last_stk_body = None
+            self.last_b2c_body = None
 
     def record_attempt(self, attempt: CallbackAttempt) -> None:
         with self._lock:
@@ -136,6 +156,22 @@ class StkPushBody(BaseModel):
     CallBackURL: str
     AccountReference: str
     TransactionDesc: str
+
+
+class B2cPaymentBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    OriginatorConversationID: str
+    InitiatorName: str
+    SecurityCredential: str
+    CommandID: str
+    Amount: int | str
+    PartyA: str
+    PartyB: str
+    Remarks: str
+    QueueTimeOutURL: str
+    ResultURL: str
+    Occasion: str
 
 
 class StkQueryBody(BaseModel):
@@ -277,6 +313,56 @@ def build_daraja_router() -> APIRouter:
             },
         )
 
+    @router.post("/mpesa/b2c/v1/paymentrequest")
+    def b2c_payment(
+        body: B2cPaymentBody,
+        request: Request,
+        background: BackgroundTasks,
+    ) -> JSONResponse:
+        state = _state(request)
+        if not _bearer_is_valid(state, request.headers.get("authorization", "")):
+            return _error(401, "404.001.03", "Invalid Access Token")
+        problem = _validate_b2c(body)
+        if problem is not None:
+            return problem
+        amount = _whole_shillings(body.Amount)
+        if amount is None:
+            return _error(400, "400.002", "Amount must be a positive whole number of shillings")
+        idempotency_key = request.headers.get("x-idempotency-key")
+        if idempotency_key is not None:
+            idempotency_key = idempotency_key.strip() or None
+        fingerprint = _b2c_fingerprint(body, amount)
+        with state._lock:
+            state.last_b2c_body = body.model_dump()
+            behavior = _resolve_behavior(body.PartyB, state.default_behavior)
+            if idempotency_key is not None and idempotency_key in state.b2c_by_key:
+                existing = state.b2c_by_key[idempotency_key]
+                if existing.fingerprint != fingerprint:
+                    return _error(
+                        409,
+                        "sandbox.idempotency_conflict",
+                        "idempotency key was already used with a different B2C request",
+                    )
+                return _b2c_accepted(existing)
+            record = _new_b2c_record(body, amount, idempotency_key, fingerprint, behavior)
+            if idempotency_key is not None:
+                state.b2c_by_key[idempotency_key] = record
+            state.b2c_by_originator[record.originator_conversation_id] = record
+
+        payload = _b2c_callback_payload(record, behavior)
+        target = record.timeout_url if behavior.outcome is Outcome.TIMEOUT else record.result_url
+        if behavior.drop_callback:
+            state.record_attempt(
+                CallbackAttempt(
+                    checkout_request_id=record.conversation_id,
+                    dropped=True,
+                    payload=payload,
+                )
+            )
+        else:
+            background.add_task(_deliver, state, target, payload, behavior.delay_ms)
+        return _b2c_accepted(record)
+
     return router
 
 
@@ -316,6 +402,28 @@ def _bearer_is_valid(state: DarajaMockState, header: str) -> bool:
     return expires is not None and expires >= time.monotonic()
 
 
+def _validate_b2c(body: B2cPaymentBody) -> JSONResponse | None:
+    if body.CommandID != "BusinessPayment":
+        return _error(400, "400.002", "Unsupported CommandID")
+    if not body.InitiatorName or not body.SecurityCredential or not body.PartyA:
+        return _error(400, "400.002", "InitiatorName, SecurityCredential and PartyA are required")
+    if not body.OriginatorConversationID or len(body.OriginatorConversationID) > 64:
+        return _error(400, "400.002", "OriginatorConversationID is required")
+    if _whole_shillings(body.Amount) is None:
+        return _error(400, "400.002", "Amount must be a positive whole number of shillings")
+    if _PHONE_RE_MSISDN.fullmatch(body.PartyB) is None:
+        return _error(400, "400.002", "PartyB must be a Kenyan MSISDN in 2547... form")
+    for url in (body.ResultURL, body.QueueTimeOutURL):
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return _error(400, "400.002", "ResultURL and QueueTimeOutURL must be http(s)")
+    if not 1 <= len(body.Remarks) <= 100:
+        return _error(400, "400.002", "Remarks must be 1-100 characters")
+    if not 1 <= len(body.Occasion) <= 100:
+        return _error(400, "400.002", "Occasion must be 1-100 characters")
+    return None
+
+
 def _validate_stk(body: StkPushBody) -> JSONResponse | None:
     if body.TransactionType != "CustomerPayBillOnline":
         return _error(400, "400.002", "Unsupported TransactionType")
@@ -347,6 +455,21 @@ def _whole_shillings(amount: int | str) -> int | None:
     return None
 
 
+def _b2c_fingerprint(body: B2cPaymentBody, amount: int) -> str:
+    payload = {
+        "amount": amount,
+        "occasion": body.Occasion,
+        "originator": body.OriginatorConversationID,
+        "phone": body.PartyB,
+        "remarks": body.Remarks,
+        "result_url": body.ResultURL,
+        "shortcode": body.PartyA,
+        "timeout_url": body.QueueTimeOutURL,
+    }
+    encoded = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
 def _fingerprint(body: StkPushBody, amount: int) -> str:
     payload = {
         "account_reference": body.AccountReference,
@@ -366,6 +489,63 @@ def _resolve_behavior(phone: str, default: Behavior) -> Behavior:
         return default
     outcome, drop = rule
     return Behavior(outcome=outcome, delay_ms=default.delay_ms, drop_callback=drop)
+
+
+def _new_b2c_record(
+    body: B2cPaymentBody,
+    amount: int,
+    idempotency_key: str | None,
+    fingerprint: str,
+    behavior: Behavior,
+) -> B2cRecord:
+    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    suffix = secrets.token_hex(4)
+    return B2cRecord(
+        idempotency_key=idempotency_key,
+        fingerprint=fingerprint,
+        originator_conversation_id=body.OriginatorConversationID,
+        conversation_id=f"AG_{stamp}_{suffix}",
+        phone=body.PartyB,
+        amount_shillings=amount,
+        result_url=body.ResultURL,
+        timeout_url=body.QueueTimeOutURL,
+        outcome=behavior.outcome,
+        completes_at=time.monotonic() + behavior.delay_ms / 1000,
+    )
+
+
+def _b2c_accepted(record: B2cRecord) -> JSONResponse:
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ConversationID": record.conversation_id,
+            "OriginatorConversationID": record.originator_conversation_id,
+            "ResponseCode": "0",
+            "ResponseDescription": "Accept the service request successfully.",
+        },
+    )
+
+
+def _b2c_callback_payload(record: B2cRecord, behavior: Behavior) -> dict[str, object]:
+    code, desc = RESULT_CODES[behavior.outcome]
+    timed_out = behavior.outcome is Outcome.TIMEOUT
+    result: dict[str, object] = {
+        "ResultType": 1 if timed_out else 0,
+        "ResultCode": code,
+        "ResultDesc": desc if not timed_out else "The service request timed out.",
+        "OriginatorConversationID": record.originator_conversation_id,
+        "ConversationID": record.conversation_id,
+        "TransactionID": _receipt() if behavior.outcome is Outcome.SUCCESS else "",
+    }
+    if behavior.outcome is Outcome.SUCCESS:
+        result["ResultParameters"] = {
+            "ResultParameter": [
+                {"Key": "TransactionAmount", "Value": record.amount_shillings},
+                {"Key": "TransactionReceipt", "Value": result["TransactionID"]},
+                {"Key": "ReceiverPartyPublicName", "Value": f"{record.phone} - Customer"},
+            ]
+        }
+    return {"Result": result}
 
 
 def _new_record(

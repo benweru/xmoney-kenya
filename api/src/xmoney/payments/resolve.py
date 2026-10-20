@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from xmoney.db import get_sessionmaker
+from xmoney.payments.cashouts import resolve_stale_cashouts
 from xmoney.payments.deps import build_rails
 from xmoney.payments.topups import resolve_stale_topups
 
@@ -14,10 +15,12 @@ def main() -> None:
     rails = build_rails()
     try:
         with get_sessionmaker()() as session:
-            changed = resolve_stale_topups(session, rails)
+            topups = resolve_stale_topups(session, rails)
+            cashouts = resolve_stale_cashouts(session)
     finally:
         rails.close()
-    logging.getLogger("xmoney.topups").info("resolved %d top-up(s)", changed)
+    logging.getLogger("xmoney.topups").info("resolved %d top-up(s)", topups)
+    logging.getLogger("xmoney.cashouts").info("resolved %d cash-out(s)", cashouts)
 
 
 if __name__ == "__main__":

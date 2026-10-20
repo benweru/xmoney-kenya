@@ -72,6 +72,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/sandbox/daraja/mpesa/b2c/v1/paymentrequest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** B2C Payment */
+    post: operations["b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/sandbox/daraja/mpesa/stkpush/v1/processrequest": {
     parameters: {
       query?: never;
@@ -200,6 +217,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/cashouts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Create Cashout
+     * @description Hold wallet funds and queue a B2C payment. Poll GET /v1/cashouts/{id}.
+     */
+    post: operations["create_cashout_v1_cashouts_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/cashouts/{cashout_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read Cashout
+     * @description Current state. A cash-out waiting too long is expired or released here.
+     */
+    get: operations["read_cashout_v1_cashouts__cashout_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/handles/{handle}": {
     parameters: {
       query?: never;
@@ -287,6 +344,46 @@ export interface paths {
     get: operations["list_rails_v1_payment_rails_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/payments/b2c/result/{token}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * B2C Result
+     * @description Daraja's B2C result. Success settles the hold; failure releases it.
+     */
+    post: operations["b2c_result_v1_payments_b2c_result__token__post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/payments/b2c/timeout/{token}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * B2C Timeout
+     * @description Daraja's B2C timeout. The hold stays in clearing until a late result or staff.
+     */
+    post: operations["b2c_timeout_v1_payments_b2c_timeout__token__post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -437,6 +534,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** B2cPaymentBody */
+    B2cPaymentBody: {
+      /** Amount */
+      Amount: number | string;
+      /** Commandid */
+      CommandID: string;
+      /** Initiatorname */
+      InitiatorName: string;
+      /** Occasion */
+      Occasion: string;
+      /** Originatorconversationid */
+      OriginatorConversationID: string;
+      /** Partya */
+      PartyA: string;
+      /** Partyb */
+      PartyB: string;
+      /** Queuetimeouturl */
+      QueueTimeOutURL: string;
+      /** Remarks */
+      Remarks: string;
+      /** Resulturl */
+      ResultURL: string;
+      /** Securitycredential */
+      SecurityCredential: string;
+    };
     /** BalanceOut */
     BalanceOut: {
       /**
@@ -471,6 +593,58 @@ export interface components {
       drop_callback: boolean;
       /** @default success */
       outcome: components["schemas"]["Outcome"];
+    };
+    /** CashoutIn */
+    CashoutIn: {
+      /**
+       * Amount Cents
+       * @example 50000
+       */
+      amount_cents: number;
+      /**
+       * Phone
+       * @description The M-PESA line to pay. Defaults to the signed-in user's phone.
+       * @example +254708374149
+       */
+      phone?: string | null;
+      /**
+       * Rail
+       * @description The rail for the B2C payment. Defaults to GET /v1/payment-rails `default`.
+       */
+      rail?: ("mock" | "sandbox") | null;
+    };
+    /** CashoutOut */
+    CashoutOut: {
+      /** Amount Cents */
+      amount_cents: number;
+      /** Conversation Id */
+      conversation_id: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Idempotent Replay */
+      idempotent_replay: boolean;
+      /** Mpesa Receipt Number */
+      mpesa_receipt_number: string | null;
+      /** Phone */
+      phone: string;
+      /** Rail */
+      rail: string;
+      /** Resolved At */
+      resolved_at: string | null;
+      /** Result Code */
+      result_code: number | null;
+      /** Result Desc */
+      result_desc: string | null;
+      /** Status */
+      status: string;
     };
     /** ChallengeOut */
     ChallengeOut: {
@@ -966,6 +1140,39 @@ export interface operations {
       };
     };
   };
+  b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["B2cPaymentBody"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   stk_push_sandbox_daraja_mpesa_stkpush_v1_processrequest_post: {
     parameters: {
       query?: never;
@@ -1178,6 +1385,81 @@ export interface operations {
       };
     };
   };
+  create_cashout_v1_cashouts_post: {
+    parameters: {
+      query?: never;
+      header: {
+        "Idempotency-Key": string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CashoutIn"];
+      };
+    };
+    responses: {
+      /** @description Idempotent replay */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CashoutOut"];
+        };
+      };
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CashoutOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  read_cashout_v1_cashouts__cashout_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        cashout_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CashoutOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   get_handle_v1_handles__handle__get: {
     parameters: {
       query?: never;
@@ -1297,6 +1579,84 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["RailsOut"];
+        };
+      };
+    };
+  };
+  b2c_result_v1_payments_b2c_result__token__post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  b2c_timeout_v1_payments_b2c_timeout__token__post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

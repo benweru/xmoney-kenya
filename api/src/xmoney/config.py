@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     stk_query_after_seconds: int = 60
     stk_expire_after_seconds: int = 300
     stk_query_interval_seconds: int = 15
+    # B2C has no sync query. After this, initiated holds are released; pending holds expire
+    # in clearing until a late result arrives.
+    b2c_expire_after_seconds: int = 300
+    daraja_initiator_name: str = "testapi"
+    daraja_security_credential: str = "sandbox"
+    daraja_b2c_shortcode: str = ""
 
     # Transactional outbox worker: a failed job waits base * 2^(attempt-1) seconds
     # (capped), and goes to the dead-letter queue after max_attempts. A claimed job
