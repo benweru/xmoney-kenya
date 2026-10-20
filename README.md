@@ -381,6 +381,7 @@ flowchart LR
   - 2 trusted proxy hops for the rate limits, and secure cookies.
   - A KES 1,000 top-up cap, and the mock's control route switched off.
   - A nightly reset to the seed (`xmoney-demo reset`) at 03:00 Nairobi time.
+  - Reconciliation (`xmoney-recon`) at 04:00 Nairobi time: classified breaks, no auto-repair ([ADR 015](docs/adr/015-reconciliation.md)).
   - STK Query for silent top-ups every 10 minutes.
 - **Mock or Daraja sandbox.** The mock is always on. `enable_sandbox_rail = true` adds the real Daraja sandbox, limited to the owner's test phones, because its prompts reach real handsets.
 - **Cost.** About $1.90 a day awake, $1 asleep, and cents when down. `make aws-sleep`, `make aws-wake`, `make aws-down`, and `make aws-up` are explained in [aws-costs.md](docs/runbooks/aws-costs.md).

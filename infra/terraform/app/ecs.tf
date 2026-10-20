@@ -1,5 +1,5 @@
-# One image, four task definitions: the API service (which also serves the Daraja
-# mock), the outbox worker, and two scheduled jobs. Each has its own execution
+# One image, five task definitions: the API service (which also serves the Daraja
+# mock), the outbox worker, and three scheduled jobs. Each has its own execution
 # role, which reads only the secrets that task needs, and its own task role, which
 # has no AWS permissions because the code calls no AWS APIs. See docs/adr/007.
 
@@ -180,6 +180,11 @@ locals {
       command = ["xmoney-demo", "reset", "--yes"]
       env     = merge(local.db_env, { PAYMENT_RAILS = jsonencode(["mock"]) })
       secrets = local.db_secrets
+    }
+    recon = {
+      command = ["xmoney-recon"]
+      env     = local.resolve_env
+      secrets = merge(local.db_secrets, local.daraja_secrets)
     }
   }
 

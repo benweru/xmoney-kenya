@@ -42,6 +42,7 @@ xmoney = "xmoney.main:main"
 xmoney-resolve-topups = "xmoney.payments.resolve:main"
 xmoney-outbox-worker = "xmoney.outbox.worker:main"
 xmoney-demo = "xmoney.demo:main"
+xmoney-recon = "xmoney.recon.job:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

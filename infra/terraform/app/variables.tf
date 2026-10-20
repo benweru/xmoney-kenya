@@ -84,6 +84,12 @@ variable "demo_reset_schedule" {
   default     = "cron(0 3 * * ? *)"
 }
 
+variable "recon_schedule" {
+  description = "When to run reconciliation, in Africa/Nairobi time."
+  type        = string
+  default     = "cron(0 4 * * ? *)"
+}
+
 variable "db_instance_class" {
   description = "RDS instance class. db.t4g.micro is free-tier eligible for 12 months."
   type        = string

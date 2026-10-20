@@ -26,3 +26,4 @@ Keep it to about one page. Read the code, not just the PR descriptions.
 | [m2-stk-query-confirm.md](m2-stk-query-confirm.md) | STK Query before credit | A failure callback with the URL token can still fail a paid top-up | Confirm failures with STK Query (M5 allowlist also helps) |
 | [m3-hot-row.md](m3-hot-row.md) | First M3 slice: no float lock | Reconciler does not yet check running totals vs `SUM(postings)` | M3 reconciler |
 | [m3-fees.md](m3-fees.md) | P2P fee schedules | Quote endpoint does not lock; UI can show a stale free allowance | Acceptable for demo; cash-out fees later |
+| [m3-recon.md](m3-recon.md) | First reconciler | No settlement file, so paid-but-never-called-back is invisible | Mock settlement / Transaction Status |
