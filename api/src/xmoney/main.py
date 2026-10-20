@@ -15,6 +15,7 @@ from starlette.responses import Response
 from xmoney import __version__
 from xmoney.auth.routes import router as auth_router
 from xmoney.config import get_settings
+from xmoney.console.routes import router as console_router
 from xmoney.errors import RateLimited, XMoneyError
 from xmoney.history.routes import router as history_router
 from xmoney.identity.routes import router as identity_router
@@ -108,6 +109,7 @@ def create_app() -> FastAPI:
     for router in (
         identity_router,
         auth_router,
+        console_router,
         inbox_router,
         payments_router,
         transfers_router,

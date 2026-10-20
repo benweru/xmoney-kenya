@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -68,6 +69,12 @@ export default function Welcome() {
           </li>
         ))}
       </ul>
+      <p className="text-center text-sm text-muted">
+        Staff?{" "}
+        <Link href="/console/sign-in/" className="font-semibold text-brand">
+          Open the operations console
+        </Link>
+      </p>
     </PublicShell>
   );
 }

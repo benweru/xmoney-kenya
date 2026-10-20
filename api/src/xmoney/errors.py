@@ -156,6 +156,16 @@ class InvalidReversal(XMoneyError):
     http_status = 422
 
 
+class OutboxJobNotFound(XMoneyError):
+    code = "outbox_job_not_found"
+    http_status = 404
+
+
+class InvalidOutbox(XMoneyError):
+    code = "invalid_outbox"
+    http_status = 422
+
+
 class InvalidCursor(XMoneyError):
     code = "invalid_cursor"
     http_status = 422

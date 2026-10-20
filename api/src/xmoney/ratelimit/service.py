@@ -42,6 +42,7 @@ SIGN_IN = Limit("sign-in", 20, 600)
 VERIFY_CODE = Limit("verify", 20, 600)
 READ_INBOX = Limit("inbox", 60, 60)
 LOOK_UP_HANDLE = Limit("handle", 60, 60)
+CONSOLE_SIGN_IN = Limit("console-sign-in", 20, 600)
 # Per signed-in user.
 START_TOPUP = Limit("topup", 10, 3600)
 START_CASHOUT = Limit("cashout", 10, 3600)

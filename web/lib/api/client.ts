@@ -13,6 +13,14 @@ export type Transfer = Schemas["TransferOut"];
 export type HistoryItem = Schemas["HistoryItemOut"];
 export type HistoryPage = Schemas["HistoryPageOut"];
 export type InboxMessage = Schemas["InboxMessageOut"];
+export type StaffMe = Schemas["StaffMeOut"];
+export type ConsoleUser = Schemas["ConsoleUserOut"];
+export type ConsoleHistoryPage = Schemas["ConsoleHistoryPageOut"];
+export type ConsoleJournal = Schemas["ConsoleJournalOut"];
+export type ConsoleReconLatest = Schemas["ConsoleReconLatestOut"];
+export type ConsoleSuspense = Schemas["ConsoleSuspenseOut"];
+export type ConsoleDlqJob = Schemas["ConsoleDlqJobOut"];
+export type ConsoleAuditEvent = Schemas["ConsoleAuditEventOut"];
 
 /**
  * Same origin by default: CloudFront (AWS) and nginx (docker compose) route /api/* to the API.

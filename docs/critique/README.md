@@ -29,3 +29,4 @@ Keep it to about one page. Read the code, not just the PR descriptions.
 | [m3-recon.md](m3-recon.md) | First reconciler | No settlement file, so paid-but-never-called-back is invisible | Mock settlement / Transaction Status |
 | [m3-suspense.md](m3-suspense.md) | Suspense CLI | No staff identity; opening always hits the float | Console / maker-checker |
 | [m3-reversals.md](m3-reversals.md) | Reversal CLI | Actor names are labels, not sessions | Console staff login |
+| [m3-console.md](m3-console.md) | Staff console v1 | Published demo PIN; GET audits are noisy | M5 TOTP; staff ids on reverse/suspense |

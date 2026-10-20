@@ -2,7 +2,7 @@
 
 Sandbox-only. Nothing here ever moves real money. The app refuses to start outside sandbox mode, and the Daraja client refuses the production host. Every milestone keeps those rules.
 
-Design decisions are recorded as ADRs in [`docs/adr/`](adr/README.md).
+Design decisions are recorded as ADRs in [`docs/adr/`](adr/README.md). Build stops only at the [checkpoints](checkpoints.md).
 
 ## Vision
 
