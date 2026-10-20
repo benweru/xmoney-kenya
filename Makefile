@@ -1,6 +1,6 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
 	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups outbox-worker \
-	openapi e2e screenshots demo-seed demo-reset recon suspense \
+	openapi e2e screenshots demo-seed demo-reset recon suspense reversal \
 	tf-check aws-bootstrap aws-foundation aws-plan aws-up aws-sleep aws-wake aws-down aws-run-job
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
@@ -108,6 +108,10 @@ recon:
 #   make suspense ARGS='apply --id <uuid> --to amina --reason customer-called'
 suspense:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-suspense $(ARGS)
+
+# Reverse a journal entry. Large amounts need a second actor. See docs/runbooks/reversals.md.
+reversal:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-reversal $(ARGS)
 
 # Run the outbox worker (retries, backoff, dead-letter queue). Ctrl-C stops it after the current job.
 outbox-worker:

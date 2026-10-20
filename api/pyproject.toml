@@ -44,6 +44,7 @@ xmoney-outbox-worker = "xmoney.outbox.worker:main"
 xmoney-demo = "xmoney.demo:main"
 xmoney-recon = "xmoney.recon.job:main"
 xmoney-suspense = "xmoney.suspense.cli:main"
+xmoney-reversal = "xmoney.reversals.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

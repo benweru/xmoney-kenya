@@ -20,5 +20,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [014](014-p2p-fee-engine.md) | P2P fee engine: versioned schedules, three-leg postings | Accepted |
 | [015](015-reconciliation.md) | Reconciliation classifies breaks; it does not repair them yet | Accepted |
 | [016](016-suspense.md) | Suspense: park unmatched value, then apply or refund | Accepted |
+| [017](017-reversals.md) | Reversals are new entries; large ones need a second actor | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.
