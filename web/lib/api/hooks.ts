@@ -119,6 +119,19 @@ export function useSignOut() {
   });
 }
 
+export function useTransferQuote(amountCents: number | null) {
+  return useQuery({
+    queryKey: ["transfer-quote", amountCents] as const,
+    enabled: amountCents !== null && amountCents > 0,
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/transfers/quote", {
+          params: { query: { amount_cents: amountCents! } },
+        }),
+      ),
+  });
+}
+
 export function useLookupHandle() {
   return useMutation({
     mutationFn: (handle: string) =>

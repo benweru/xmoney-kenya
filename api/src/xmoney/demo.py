@@ -31,6 +31,7 @@ from xmoney.identity.service import RegisteredUser, register_user
 from xmoney.inbox import models as inbox_models  # noqa: F401
 from xmoney.ledger import models as ledger_models  # noqa: F401
 from xmoney.ledger.service import seed_system_accounts
+from xmoney.transfers.fees import ensure_default_p2p_schedule
 from xmoney.payments import models as payments_models  # noqa: F401
 from xmoney.payments.cashouts import handle_b2c_callback, start_cashout
 from xmoney.payments.daraja import parse_b2c_result, parse_stk_callback
@@ -155,6 +156,7 @@ def reset(session: Session) -> None:
         session.execute(text("SET LOCAL xmoney.allow_truncate = 'on'"))
         session.execute(text(f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE"))
         seed_system_accounts(session)
+        ensure_default_p2p_schedule(session)
     seed(session)
 
 

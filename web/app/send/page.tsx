@@ -6,7 +6,13 @@ import { SignedInShell, useSignedInUser } from "@/components/app-shell";
 import { CheckIcon } from "@/components/icons";
 import { Alert, Button, ButtonLink, Card, Field, Input, PageTitle } from "@/components/ui";
 import type { Transfer } from "@/lib/api/client";
-import { newIdempotencyKey, useBalance, useLookupHandle, useSend } from "@/lib/api/hooks";
+import {
+  newIdempotencyKey,
+  useBalance,
+  useLookupHandle,
+  useSend,
+  useTransferQuote,
+} from "@/lib/api/hooks";
 import { formatKes, normalizeHandle, parseKesToCents } from "@/lib/format";
 
 type Draft = { to: string; cents: number; note: string; key: string };
@@ -142,6 +148,9 @@ function Confirm({
   onSent: (t: Transfer) => void;
 }) {
   const send = useSend();
+  const quote = useTransferQuote(draft.cents);
+  const fee = quote.data?.fee_cents ?? 0;
+  const total = quote.data?.total_cents ?? draft.cents;
   return (
     <section className="flex flex-col gap-6" aria-label="Confirm send">
       <PageTitle title="Confirm send" subtitle="Check the handle. Sends can't be reversed." />
@@ -163,6 +172,20 @@ function Confirm({
               @{draft.to}
             </span>
           </p>
+          {quote.data && (
+            <p className="mt-3 text-sm text-muted">
+              Fee{" "}
+              <span className="font-medium text-ink tabular-nums" data-testid="confirm-fee">
+                {formatKes(fee)}
+              </span>
+              {quote.data.waived ? " (free allowance)" : ""}
+              {" · "}
+              You pay{" "}
+              <span className="font-medium text-ink tabular-nums" data-testid="confirm-total">
+                {formatKes(total)}
+              </span>
+            </p>
+          )}
         </div>
         {draft.note && (
           <p className="rounded-full bg-surface px-4 py-1.5 text-sm">“{draft.note}”</p>
@@ -183,7 +206,8 @@ function Confirm({
       )}
       <div className="flex flex-col gap-3">
         <Button
-          loading={send.isPending}
+          loading={send.isPending || quote.isFetching}
+          disabled={!quote.data}
           onClick={() =>
             send.mutate(
               {
@@ -196,7 +220,7 @@ function Confirm({
             )
           }
         >
-          Send {formatKes(draft.cents)}
+          Send {formatKes(total)}
         </Button>
         <Button variant="secondary" onClick={onBack} disabled={send.isPending}>
           Edit

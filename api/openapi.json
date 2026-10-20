@@ -1057,6 +1057,14 @@
             "title": "Created At",
             "type": "string"
           },
+          "fee_cents": {
+            "title": "Fee Cents",
+            "type": "integer"
+          },
+          "fee_schedule_version": {
+            "title": "Fee Schedule Version",
+            "type": "integer"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1091,11 +1099,46 @@
           "sender",
           "recipient",
           "amount_cents",
+          "fee_cents",
+          "fee_schedule_version",
           "note",
           "created_at",
           "idempotent_replay"
         ],
         "title": "TransferOut",
+        "type": "object"
+      },
+      "TransferQuoteOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "fee_cents": {
+            "title": "Fee Cents",
+            "type": "integer"
+          },
+          "fee_schedule_version": {
+            "title": "Fee Schedule Version",
+            "type": "integer"
+          },
+          "total_cents": {
+            "title": "Total Cents",
+            "type": "integer"
+          },
+          "waived": {
+            "title": "Waived",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "amount_cents",
+          "fee_cents",
+          "total_cents",
+          "fee_schedule_version",
+          "waived"
+        ],
+        "title": "TransferQuoteOut",
         "type": "object"
       },
       "UserOut": {
@@ -2308,6 +2351,52 @@
           }
         },
         "summary": "Create Transfer",
+        "tags": [
+          "transfers"
+        ]
+      }
+    },
+    "/v1/transfers/quote": {
+      "get": {
+        "description": "Price a send under the schedule in force, including any remaining free allowance.",
+        "operationId": "quote_transfer_v1_transfers_quote_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "amount_cents",
+            "required": true,
+            "schema": {
+              "examples": [
+                12000
+              ],
+              "title": "Amount Cents",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferQuoteOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quote Transfer",
         "tags": [
           "transfers"
         ]

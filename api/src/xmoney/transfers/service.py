@@ -35,6 +35,8 @@ from xmoney.ledger.money import (
     require_idempotency_key,
 )
 from xmoney.ledger.service import get_balance, lock_accounts, post_entry_in_transaction
+from xmoney.ledger.system import FEES
+from xmoney.transfers.fees import FeeQuote, quote_p2p
 from xmoney.transfers.models import Transfer
 
 _UNIQUE_VIOLATION = "23505"
@@ -47,6 +49,8 @@ class TransferView:
     sender_handle: str
     recipient_handle: str
     amount_cents: int
+    fee_cents: int
+    fee_schedule_version: int
     note: str | None
     created_at: datetime
     idempotent_replay: bool
@@ -89,21 +93,21 @@ def send(
                     return _view(existing, sender_handle, recipient.handle, replay=True)
 
                 lock_accounts(session, (sender_wallet_id, recipient.wallet_account_id))
+                quote = quote_p2p(session, sender_user_id=sender_user_id, amount_cents=amount)
                 available = get_balance(session, sender_wallet_id).balance_cents
-                if available < amount:
-                    raise InsufficientFunds(
-                        f"balance is KES {available / 100:,.2f}; "
-                        f"cannot send KES {amount / 100:,.2f}"
-                    )
+                if available < quote.total_cents:
+                    raise InsufficientFunds(_funds_message(available, quote))
                 transfer_id = uuid4()
                 posted = post_entry_in_transaction(
                     session,
                     PostCommand(
                         idempotency_key=f"transfer:{transfer_id}",
                         description=f"Transfer @{sender_handle} to @{recipient.handle}",
-                        postings=(
-                            PostingLine(sender_wallet_id, Direction.DEBIT, amount),
-                            PostingLine(recipient.wallet_account_id, Direction.CREDIT, amount),
+                        postings=_postings(
+                            sender_wallet_id,
+                            recipient.wallet_account_id,
+                            quote.amount_cents,
+                            quote.fee_cents,
                         ),
                     ),
                 )
@@ -111,7 +115,10 @@ def send(
                     id=transfer_id,
                     sender_user_id=sender_user_id,
                     recipient_user_id=recipient.user_id,
-                    amount_cents=amount,
+                    amount_cents=quote.amount_cents,
+                    fee_cents=quote.fee_cents,
+                    fee_schedule_id=quote.schedule_id,
+                    fee_schedule_version=quote.schedule_version,
                     note=clean_note,
                     idempotency_key=key,
                     request_hash=digest,
@@ -135,6 +142,31 @@ def _clean_note(note: str | None) -> str | None:
     return cleaned or None
 
 
+def _postings(
+    sender_wallet_id: UUID, recipient_wallet_id: UUID, amount: int, fee: int
+) -> tuple[PostingLine, ...]:
+    lines = [
+        PostingLine(sender_wallet_id, Direction.DEBIT, amount + fee),
+        PostingLine(recipient_wallet_id, Direction.CREDIT, amount),
+    ]
+    if fee:
+        lines.append(PostingLine(FEES.id, Direction.CREDIT, fee))
+    return tuple(lines)
+
+
+def _funds_message(available: int, quote: FeeQuote) -> str:
+    if quote.fee_cents == 0:
+        return (
+            f"balance is KES {available / 100:,.2f}; "
+            f"cannot send KES {quote.amount_cents / 100:,.2f}"
+        )
+    return (
+        f"balance is KES {available / 100:,.2f}; "
+        f"cannot send KES {quote.amount_cents / 100:,.2f} "
+        f"plus KES {quote.fee_cents / 100:,.2f} fee"
+    )
+
+
 def _request_hash(recipient_user_id: UUID, amount: int, note: str | None) -> str:
     payload = {"amount_cents": amount, "note": note, "recipient": str(recipient_user_id)}
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -147,6 +179,8 @@ def _view(transfer: Transfer, sender: str, recipient: str, *, replay: bool) -> T
         sender_handle=sender,
         recipient_handle=recipient,
         amount_cents=transfer.amount_cents,
+        fee_cents=transfer.fee_cents,
+        fee_schedule_version=transfer.fee_schedule_version,
         note=transfer.note,
         created_at=transfer.created_at,
         idempotent_replay=replay,

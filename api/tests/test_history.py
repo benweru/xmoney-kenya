@@ -122,7 +122,7 @@ def test_history_shows_top_ups_and_sends_to_their_owner_only(
             for i in mine["items"]
         ] == [
             ("transfer_in", 5_000, "baraka", None, None),
-            ("transfer_out", -20_000, "baraka", "Lunch", None),
+            ("transfer_out", -20_100, "baraka", "Lunch", None),
             ("topup", 50_000, None, None, receipt),
         ]
 

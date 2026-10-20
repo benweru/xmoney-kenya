@@ -15,6 +15,7 @@ from xmoney.ledger.models import Posting
 from xmoney.ledger.money import Direction, PostCommand, PostingLine
 from xmoney.ledger.service import get_balance, post_entry, trial_totals
 from xmoney.ledger.system import MPESA_FLOAT
+from xmoney.transfers.fees import quote_p2p
 from xmoney.transfers.service import send
 
 _SETTINGS = settings(
@@ -72,7 +73,9 @@ def test_sends_and_refusals_never_make_a_wallet_negative(
     post_entry(db, _credit(sender.wallet_account_id, key=f"fund-{uuid4()}", amount=funds))
 
     remaining = funds
+    received = 0
     for index, amount in enumerate(attempts):
+        quote = quote_p2p(db, sender_user_id=sender.id, amount_cents=amount)
         try:
             send(
                 db,
@@ -84,14 +87,15 @@ def test_sends_and_refusals_never_make_a_wallet_negative(
                 idempotency_key=f"send-{uuid4()}-{index}",
             )
         except InsufficientFunds:
-            assert amount > remaining
+            assert quote.total_cents > remaining
             continue
-        remaining -= amount
+        remaining -= quote.total_cents
+        received += amount
         assert remaining >= 0
 
     assert get_balance(db, sender.wallet_account_id).balance_cents == remaining
     assert remaining >= 0
-    assert get_balance(db, recipient.wallet_account_id).balance_cents == funds - remaining
+    assert get_balance(db, recipient.wallet_account_id).balance_cents == received
     debits, credits = trial_totals(db)
     assert debits == credits
 

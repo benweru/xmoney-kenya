@@ -117,6 +117,14 @@ A 100.00 KES collection with a 1.00 KES fee will eventually post as:
 | Wallet @amina | | 9900 |
 | Fee income | | 100 |
 
+P2P sends use a versioned schedule ([ADR 014](docs/adr/014-p2p-fee-engine.md)). The recipient gets the amount; the sender is debited amount plus fee. Version 1 (a demo tariff, not Safaricom's): KES 100 and under is free, KES 1,000 and under is KES 1, above that is KES 2 plus 0.50%. A KES 120 send posts as:
+
+| Account | Debit (cents) | Credit (cents) |
+| --- | ---: | ---: |
+| Wallet @amina | 12100 | |
+| Wallet @baraka | | 12000 |
+| Fee income | | 100 |
+
 Every journal entry has an idempotency key. Replaying the same key and the same postings returns the original entry and does not move balances again. The same key with a different body is a conflict. Posting order does not matter for that comparison.
 
 PostgreSQL enforces the rules the application also checks:
