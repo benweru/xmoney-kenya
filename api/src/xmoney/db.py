@@ -29,6 +29,7 @@ def import_mapped_tables() -> None:
     from xmoney.payments import models as payments_models  # noqa: F401
     from xmoney.ratelimit import models as ratelimit_models  # noqa: F401
     from xmoney.recon import models as recon_models  # noqa: F401
+    from xmoney.suspense import models as suspense_models  # noqa: F401
     from xmoney.transfers import models as transfers_models  # noqa: F401
 
 

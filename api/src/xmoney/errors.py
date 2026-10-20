@@ -136,6 +136,16 @@ class InvalidTransfer(XMoneyError):
     http_status = 422
 
 
+class SuspenseNotFound(XMoneyError):
+    code = "suspense_not_found"
+    http_status = 404
+
+
+class InvalidSuspense(XMoneyError):
+    code = "invalid_suspense"
+    http_status = 422
+
+
 class InvalidCursor(XMoneyError):
     code = "invalid_cursor"
     http_status = 422

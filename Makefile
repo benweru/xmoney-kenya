@@ -1,6 +1,6 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
 	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups outbox-worker \
-	openapi e2e screenshots demo-seed demo-reset recon \
+	openapi e2e screenshots demo-seed demo-reset recon suspense \
 	tf-check aws-bootstrap aws-foundation aws-plan aws-up aws-sleep aws-wake aws-down aws-run-job
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
@@ -102,6 +102,12 @@ resolve-topups:
 # Classify ledger vs rail differences. Does not move money to suspense.
 recon:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-recon
+
+# Park or clear unmatched value. Not an HTTP route. See docs/runbooks/suspense.md.
+#   make suspense ARGS='open --cents 10000 --reason unmatched'
+#   make suspense ARGS='apply --id <uuid> --to amina --reason customer-called'
+suspense:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-suspense $(ARGS)
 
 # Run the outbox worker (retries, backoff, dead-letter queue). Ctrl-C stops it after the current job.
 outbox-worker:
