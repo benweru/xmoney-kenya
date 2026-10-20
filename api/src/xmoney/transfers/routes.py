@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from xmoney.auth.service import SessionUser
 from xmoney.db import get_db
 from xmoney.ratelimit.deps import limit_by_user
 from xmoney.ratelimit.service import SEND
+from xmoney.transfers.fees import quote_p2p
 from xmoney.transfers.service import TransferView, send
 
 router = APIRouter(tags=["transfers"])
@@ -34,6 +35,8 @@ class TransferOut(BaseModel):
     sender: str
     recipient: str
     amount_cents: int
+    fee_cents: int
+    fee_schedule_version: int
     note: str | None
     created_at: datetime
     idempotent_replay: bool
@@ -45,10 +48,37 @@ class TransferOut(BaseModel):
             sender=view.sender_handle,
             recipient=view.recipient_handle,
             amount_cents=view.amount_cents,
+            fee_cents=view.fee_cents,
+            fee_schedule_version=view.fee_schedule_version,
             note=view.note,
             created_at=view.created_at,
             idempotent_replay=view.idempotent_replay,
         )
+
+
+class TransferQuoteOut(BaseModel):
+    amount_cents: int
+    fee_cents: int
+    total_cents: int
+    fee_schedule_version: int
+    waived: bool
+
+
+@router.get("/transfers/quote", response_model=TransferQuoteOut)
+def quote_transfer(
+    amount_cents: StrictInt = Query(..., examples=[12_000]),
+    user: SessionUser = Depends(current_user),
+    session: Session = Depends(get_db),
+) -> TransferQuoteOut:
+    """Price a send under the schedule in force, including any remaining free allowance."""
+    quote = quote_p2p(session, sender_user_id=user.user_id, amount_cents=amount_cents)
+    return TransferQuoteOut(
+        amount_cents=quote.amount_cents,
+        fee_cents=quote.fee_cents,
+        total_cents=quote.total_cents,
+        fee_schedule_version=quote.schedule_version,
+        waived=quote.waived,
+    )
 
 
 @router.post(

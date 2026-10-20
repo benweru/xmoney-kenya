@@ -513,6 +513,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/transfers/quote": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Quote Transfer
+     * @description Price a send under the schedule in force, including any remaining free allowance.
+     */
+    get: operations["quote_transfer_v1_transfers_quote_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/users": {
     parameters: {
       query?: never;
@@ -970,6 +990,10 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+      /** Fee Cents */
+      fee_cents: number;
+      /** Fee Schedule Version */
+      fee_schedule_version: number;
       /**
        * Id
        * Format: uuid
@@ -983,6 +1007,19 @@ export interface components {
       recipient: string;
       /** Sender */
       sender: string;
+    };
+    /** TransferQuoteOut */
+    TransferQuoteOut: {
+      /** Amount Cents */
+      amount_cents: number;
+      /** Fee Cents */
+      fee_cents: number;
+      /** Fee Schedule Version */
+      fee_schedule_version: number;
+      /** Total Cents */
+      total_cents: number;
+      /** Waived */
+      waived: boolean;
     };
     /** UserOut */
     UserOut: {
@@ -1879,6 +1916,37 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TransferOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  quote_transfer_v1_transfers_quote_get: {
+    parameters: {
+      query: {
+        amount_cents: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TransferQuoteOut"];
         };
       };
       /** @description Validation Error */

@@ -54,7 +54,9 @@ test("register, top up through STK, send to an @handle, and see the history", as
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByTestId("confirm-recipient")).toHaveText(`@${friend.handle}`);
   await expect(page.getByTestId("confirm-amount")).toHaveText("KES 120.00");
-  await page.getByRole("button", { name: "Send KES 120.00" }).click();
+  await expect(page.getByTestId("confirm-fee")).toHaveText("KES 1.00");
+  await expect(page.getByTestId("confirm-total")).toHaveText("KES 121.00");
+  await page.getByRole("button", { name: "Send KES 121.00" }).click();
   await expect(page.getByTestId("send-success")).toContainText("Sent KES 120.00");
 
   await page
@@ -71,7 +73,7 @@ test("register, top up through STK, send to an @handle, and see the history", as
   await expect(cashout).toContainText("KES 100.00 sent");
   await expect(cashout).toContainText(/SBOX[A-Z0-9]{8}/);
   await page.getByRole("link", { name: "Back to wallet" }).click();
-  await expect(page.getByTestId("balance")).toHaveText("KES 280.00");
+  await expect(page.getByTestId("balance")).toHaveText("KES 279.00");
 
   await page
     .getByRole("navigation", { name: "Wallet" })
@@ -82,7 +84,7 @@ test("register, top up through STK, send to an @handle, and see the history", as
   await expect(rows.nth(0)).toContainText("M-PESA cash-out");
   await expect(rows.nth(0)).toContainText("− KES 100.00");
   await expect(rows.nth(1)).toContainText(`To @${friend.handle}`);
-  await expect(rows.nth(1)).toContainText("− KES 120.00");
+  await expect(rows.nth(1)).toContainText("− KES 121.00");
   await expect(rows.nth(1)).toContainText("Lunch");
   await expect(rows.nth(2)).toContainText("M-PESA top-up");
   await expect(rows.nth(2)).toContainText("+ KES 500.00");
@@ -91,7 +93,7 @@ test("register, top up through STK, send to an @handle, and see the history", as
     .getByRole("navigation", { name: "Wallet" })
     .getByRole("link", { name: "Home" })
     .click();
-  await expect(page.getByTestId("balance")).toHaveText("KES 280.00");
+  await expect(page.getByTestId("balance")).toHaveText("KES 279.00");
 });
 
 test("a cancelled STK prompt and a refused send move no money", async ({ page, request }) => {
