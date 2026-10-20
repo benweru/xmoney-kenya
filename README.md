@@ -343,6 +343,7 @@ Coverage that matters for a ledger:
 - Open demo: the journal route is 404 by default and cannot be enabled behind `https`; registration, sign-in, and top-ups are refused past their limits; failed attempts count; forged `X-Forwarded-For` addresses do not get a fresh bucket.
 - Rails: each top-up is queried on the rail that took it; a rail that is no longer offered still expires; the sandbox rail refuses placeholder keys, and on a public URL it refuses to start without a phone allowlist.
 - Demo seed and reset: the seed goes through the real top-up and transfer code, runs once, and leaves no PIN; reset removes visitors and restores the seed.
+- Suspense: unmatched value parks as debit float / credit `system:suspense`, then a CLI apply or refund posts the compensating entry; there is no HTTP mint.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a success callback is recorded and the wallet is credited only after STK Query confirms; a callback that beats the push response is confirmed the same way; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, forged (wrong token), and forged success (correct token, query not paid) callbacks move no money; Postgres rejects illegal transitions.
 
 ## The AWS demo
