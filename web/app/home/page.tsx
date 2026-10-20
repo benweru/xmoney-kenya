@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { SignedInShell } from "@/components/app-shell";
-import { HistoryIcon, SendIcon, TopUpIcon } from "@/components/icons";
+import { CashOutIcon, HistoryIcon, SendIcon, TopUpIcon } from "@/components/icons";
 import { TransactionList, TransactionSkeleton } from "@/components/transaction-list";
 import { Alert, Button, ButtonLink, Card, EmptyState, Skeleton } from "@/components/ui";
 import { useBalance, useHistory } from "@/lib/api/hooks";
@@ -54,11 +54,12 @@ function BalanceCard() {
 function QuickActions() {
   const actions = [
     { href: "/top-up/", label: "Top up", icon: TopUpIcon },
+    { href: "/cash-out/", label: "Cash out", icon: CashOutIcon },
     { href: "/send/", label: "Send", icon: SendIcon },
     { href: "/history/", label: "History", icon: HistoryIcon },
   ] as const;
   return (
-    <nav aria-label="Quick actions" className="grid grid-cols-3 gap-3">
+    <nav aria-label="Quick actions" className="grid grid-cols-2 gap-3">
       {actions.map(({ href, label, icon: ActionIcon }) => (
         <Link
           key={href}

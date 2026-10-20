@@ -164,6 +164,15 @@ Sign-in takes two steps, as in [ADR 004](docs/adr/004-pin-otp-sign-in.md):
 
 `make smoke-topup PHONE=+254712345000` runs one top-up through a running API. The [Daraja sandbox runbook](docs/runbooks/daraja-sandbox-top-up.md) does the same against Safaricom's sandbox with your own credentials.
 
+## Cash-outs
+
+`POST /v1/cashouts` (signed in, with an `Idempotency-Key` header) holds `amount_cents` on the wallet and queues a B2C payment to the user's phone, or to `phone` if given. The hold is debit wallet, credit `system:mpesa_clearing`. Poll `GET /v1/cashouts/{id}`.
+
+- The outbox worker sends the B2C call. A paid result settles clearing into `system:mpesa_float`. A failed result releases the hold.
+- A timeout (`037` on the mock, or Daraja's timeout URL) expires the cash-out and **leaves the hold**. A late paid result still settles.
+- If B2C never accepts the request, the hold is released after `B2C_EXPIRE_AFTER_SECONDS` (300).
+- Replay of the same `Idempotency-Key` returns the same cash-out.
+
 ## Sends
 
 `POST /v1/transfers` (signed in, with an `Idempotency-Key` header) sends `amount_cents` to an @handle, with an optional `note` of up to 140 characters:

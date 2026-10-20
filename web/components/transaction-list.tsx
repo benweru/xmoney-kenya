@@ -1,13 +1,17 @@
 import type { HistoryItem } from "@/lib/api/client";
 import { formatSignedKes, formatWhen } from "@/lib/format";
 
-import { ArrowDownLeftIcon, ArrowUpRightIcon, TopUpIcon, WalletIcon } from "./icons";
+import { ArrowDownLeftIcon, ArrowUpRightIcon, CashOutIcon, TopUpIcon, WalletIcon } from "./icons";
 import { Skeleton, cx } from "./ui";
 
 function describe(item: HistoryItem): { title: string; icon: typeof TopUpIcon } {
   switch (item.kind) {
     case "topup":
       return { title: "M-PESA top-up", icon: TopUpIcon };
+    case "cashout":
+      return { title: "M-PESA cash-out", icon: CashOutIcon };
+    case "cashout_return":
+      return { title: "Cash-out returned", icon: TopUpIcon };
     case "transfer_in":
       return { title: `From @${item.counterparty ?? "someone"}`, icon: ArrowDownLeftIcon };
     case "transfer_out":

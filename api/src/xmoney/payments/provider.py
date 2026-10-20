@@ -67,6 +67,42 @@ class StkQueryResult:
     outcome: Outcome | None
 
 
+@dataclass(frozen=True)
+class B2cPaymentRequest:
+    amount_cents: int
+    phone_e164: str
+    remarks: str
+    occasion: str
+    result_url: str
+    timeout_url: str
+    originator_conversation_id: str
+    idempotency_key: str
+
+
+@dataclass(frozen=True)
+class B2cAccepted:
+    conversation_id: str
+    originator_conversation_id: str
+    response_code: str
+    response_description: str
+
+
+@dataclass(frozen=True)
+class B2cResult:
+    originator_conversation_id: str
+    conversation_id: str | None
+    result_code: int
+    result_desc: str
+    outcome: Outcome | None
+    amount_cents: int | None
+    transaction_id: str | None
+    timed_out: bool = False
+
+    @property
+    def succeeded(self) -> bool:
+        return self.result_code == 0 and not self.timed_out
+
+
 class PaymentsProvider(Protocol):
     name: str
 
@@ -81,3 +117,9 @@ class PaymentsProvider(Protocol):
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         """Turn a rail callback body into a typed result. Does not post the ledger."""
+
+    def b2c_payment(self, request: B2cPaymentRequest) -> B2cAccepted:
+        """Send a whole-shilling BusinessPayment to the customer's M-PESA."""
+
+    def parse_b2c_result(self, payload: object) -> B2cResult:
+        """Turn a B2C result or timeout body into a typed result. Does not post the ledger."""

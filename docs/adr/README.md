@@ -16,5 +16,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [010](010-wallet-running-balance-no-float-lock.md) | Do not lock system accounts; running balances on wallets | Accepted |
 | [011](011-transactional-outbox.md) | A Postgres transactional outbox with leases, backoff and a dead-letter queue | Accepted |
 | [012](012-stk-push-via-outbox.md) | STK Push is sent by the outbox worker, not the API request | Accepted |
+| [013](013-b2c-cashout.md) | B2C cash-out: hold, then settle or release | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.

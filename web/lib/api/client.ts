@@ -6,6 +6,7 @@ export type Schemas = components["schemas"];
 export type Me = Schemas["MeOut"];
 export type Balance = Schemas["BalanceOut"];
 export type Topup = Schemas["TopupOut"];
+export type Cashout = Schemas["CashoutOut"];
 export type Rail = NonNullable<Schemas["TopupIn"]["rail"]>;
 export type Rails = Schemas["RailsOut"];
 export type Transfer = Schemas["TransferOut"];

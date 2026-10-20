@@ -121,6 +121,11 @@ class TopupNotFound(XMoneyError):
     http_status = 404
 
 
+class CashoutNotFound(XMoneyError):
+    code = "cashout_not_found"
+    http_status = 404
+
+
 class InsufficientFunds(XMoneyError):
     code = "insufficient_funds"
     http_status = 422

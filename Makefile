@@ -95,7 +95,7 @@ demo-seed:
 demo-reset:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-demo reset --yes
 
-# Check top-ups still waiting on M-PESA with STK Query.
+# Check top-ups still waiting on M-PESA with STK Query, and expire stale cash-outs.
 resolve-topups:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-resolve-topups
 

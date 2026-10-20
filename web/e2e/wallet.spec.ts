@@ -59,21 +59,39 @@ test("register, top up through STK, send to an @handle, and see the history", as
 
   await page
     .getByRole("navigation", { name: "Wallet" })
+    .getByRole("link", { name: "Home" })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Quick actions" })
+    .getByRole("link", { name: "Cash out" })
+    .click();
+  await page.getByRole("button", { name: "KES 100.00", exact: true }).click();
+  await page.getByRole("button", { name: "Cash out KES 100.00" }).click();
+  const cashout = page.getByTestId("cashout-success");
+  await expect(cashout).toContainText("KES 100.00 sent");
+  await expect(cashout).toContainText(/SBOX[A-Z0-9]{8}/);
+  await page.getByRole("link", { name: "Back to wallet" }).click();
+  await expect(page.getByTestId("balance")).toHaveText("KES 280.00");
+
+  await page
+    .getByRole("navigation", { name: "Wallet" })
     .getByRole("link", { name: "History" })
     .click();
   const rows = page.getByTestId("transaction");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toContainText(`To @${friend.handle}`);
-  await expect(rows.nth(0)).toContainText("− KES 120.00");
-  await expect(rows.nth(0)).toContainText("Lunch");
-  await expect(rows.nth(1)).toContainText("M-PESA top-up");
-  await expect(rows.nth(1)).toContainText("+ KES 500.00");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("M-PESA cash-out");
+  await expect(rows.nth(0)).toContainText("− KES 100.00");
+  await expect(rows.nth(1)).toContainText(`To @${friend.handle}`);
+  await expect(rows.nth(1)).toContainText("− KES 120.00");
+  await expect(rows.nth(1)).toContainText("Lunch");
+  await expect(rows.nth(2)).toContainText("M-PESA top-up");
+  await expect(rows.nth(2)).toContainText("+ KES 500.00");
 
   await page
     .getByRole("navigation", { name: "Wallet" })
     .getByRole("link", { name: "Home" })
     .click();
-  await expect(page.getByTestId("balance")).toHaveText("KES 380.00");
+  await expect(page.getByTestId("balance")).toHaveText("KES 280.00");
 });
 
 test("a cancelled STK prompt and a refused send move no money", async ({ page, request }) => {

@@ -17,6 +17,9 @@ from xmoney.payments.jobs import send_due
 from xmoney.payments.models import Topup
 from xmoney.payments.provider import (
     AccessToken,
+    B2cAccepted,
+    B2cPaymentRequest,
+    B2cResult,
     StkCallback,
     StkPushAccepted,
     StkPushRequest,
@@ -56,6 +59,12 @@ class CountingRail:
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
+
+    def b2c_payment(self, request: B2cPaymentRequest) -> B2cAccepted:
+        raise RuntimeError("counting rail is STK-only")
+
+    def parse_b2c_result(self, payload: object) -> B2cResult:
+        raise RuntimeError("counting rail is STK-only")
 
 
 def test_the_mock_is_the_only_rail_by_default(client) -> None:

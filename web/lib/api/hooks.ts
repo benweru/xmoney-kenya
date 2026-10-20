@@ -8,7 +8,16 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-import { api, ApiError, newIdempotencyKey, unwrap, type Me, type Rail, type Topup } from "./client";
+import {
+  api,
+  ApiError,
+  newIdempotencyKey,
+  unwrap,
+  type Cashout,
+  type Me,
+  type Rail,
+  type Topup,
+} from "./client";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -21,6 +30,7 @@ export const keys = {
   balance: ["balance"] as const,
   history: ["history"] as const,
   topup: (id: string) => ["topup", id] as const,
+  cashout: (id: string) => ["cashout", id] as const,
   rails: ["rails"] as const,
   inbox: (phone: string) => ["inbox", phone] as const,
 };
@@ -165,7 +175,28 @@ export function useRails() {
   });
 }
 
+export function useStartCashout() {
+  return useMutation({
+    mutationFn: ({
+      idempotencyKey,
+      ...body
+    }: {
+      amount_cents: number;
+      phone?: string | null;
+      rail?: Rail;
+      idempotencyKey: string;
+    }) =>
+      unwrap(
+        api.POST("/v1/cashouts", {
+          body,
+          params: { header: { "Idempotency-Key": idempotencyKey } },
+        }),
+      ),
+  });
+}
+
 const FINAL_TOPUP = new Set(["succeeded", "failed", "expired"]);
+const FINAL_CASHOUT = new Set(["succeeded", "failed"]);
 
 export function isFinalTopup(topup: Topup | undefined): boolean {
   return !!topup && FINAL_TOPUP.has(topup.status);
@@ -185,6 +216,31 @@ export function useTopupStatus(id: string | null) {
       return topup;
     },
     refetchInterval: (query) => (isFinalTopup(query.state.data) ? false : 1_500),
+  });
+}
+
+export function isFinalCashout(cashout: Cashout | undefined): boolean {
+  return !!cashout && FINAL_CASHOUT.has(cashout.status);
+}
+
+/** Poll a cash-out until it succeeds, fails, or expires (then keep showing the expiry). */
+export function useCashoutStatus(id: string | null) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: keys.cashout(id ?? ""),
+    enabled: !!id,
+    queryFn: async () => {
+      const cashout = await unwrap(
+        api.GET("/v1/cashouts/{cashout_id}", { params: { path: { cashout_id: id! } } }),
+      );
+      if (isFinalCashout(cashout) || cashout.status === "expired") refreshWallet(queryClient);
+      return cashout;
+    },
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (!status || FINAL_CASHOUT.has(status) || status === "expired") return false;
+      return 1_500;
+    },
   });
 }
 

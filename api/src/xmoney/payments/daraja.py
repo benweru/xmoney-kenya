@@ -22,6 +22,9 @@ from xmoney.identity.validators import normalize_phone
 from xmoney.ledger.money import require_idempotency_key
 from xmoney.payments.provider import (
     AccessToken,
+    B2cAccepted,
+    B2cPaymentRequest,
+    B2cResult,
     Outcome,
     StkCallback,
     StkPushAccepted,
@@ -48,6 +51,43 @@ _MAX_STK_SHILLINGS = 250_000
 def daraja_password(shortcode: str, passkey: str, timestamp: str) -> str:
     raw = f"{shortcode}{passkey}{timestamp}".encode()
     return base64.b64encode(raw).decode("ascii")
+
+
+def parse_b2c_result(payload: object) -> B2cResult:
+    if not isinstance(payload, Mapping):
+        raise CallbackParseError("B2C callback must be a JSON object")
+    try:
+        result = payload["Result"]
+        result_code = int(result["ResultCode"])
+        result_desc = str(result["ResultDesc"])
+        originator = str(result["OriginatorConversationID"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise CallbackParseError("B2C callback is missing Result fields") from exc
+    conversation = result.get("ConversationID") if isinstance(result, Mapping) else None
+    conversation_id = str(conversation) if conversation else None
+    amount_cents: int | None = None
+    receipt: str | None = None
+    params = result.get("ResultParameters") if isinstance(result, Mapping) else None
+    if isinstance(params, Mapping):
+        values = _result_parameter_values(params.get("ResultParameter"))
+        amount = values.get("TransactionAmount")
+        if amount is not None:
+            amount_cents = _shillings_to_cents(amount)
+        receipt_value = values.get("TransactionReceipt")
+        if receipt_value is not None:
+            receipt = str(receipt_value)
+    if receipt is None and result.get("TransactionID"):
+        receipt = str(result["TransactionID"])
+    return B2cResult(
+        originator_conversation_id=originator,
+        conversation_id=conversation_id,
+        result_code=result_code,
+        result_desc=result_desc,
+        outcome=_OUTCOME_BY_CODE.get(result_code),
+        amount_cents=amount_cents,
+        transaction_id=receipt,
+        timed_out=False,
+    )
 
 
 def parse_stk_callback(payload: object) -> StkCallback:
@@ -100,6 +140,9 @@ class DarajaHttpProvider:
         shortcode: str,
         passkey: str,
         name: str = "daraja",
+        initiator_name: str = "testapi",
+        security_credential: str = "sandbox",
+        b2c_shortcode: str | None = None,
         client: httpx.Client | None = None,
     ) -> None:
         assert_sandbox_daraja_host(base_url)
@@ -109,6 +152,9 @@ class DarajaHttpProvider:
         self.consumer_secret = consumer_secret
         self.shortcode = shortcode
         self.passkey = passkey
+        self.initiator_name = initiator_name
+        self.security_credential = security_credential
+        self.b2c_shortcode = b2c_shortcode or shortcode
         self._owns_client = client is None
         self._client = client or httpx.Client(base_url=self.base_url, timeout=10.0)
 
@@ -234,6 +280,69 @@ class DarajaHttpProvider:
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
 
+    def b2c_payment(self, request: B2cPaymentRequest) -> B2cAccepted:
+        shillings = _whole_shillings(request.amount_cents)
+        phone = normalize_phone(request.phone_e164)
+        msisdn = phone.removeprefix("+")
+        _require_http_url(request.result_url)
+        _require_http_url(request.timeout_url)
+        if not isinstance(request.remarks, str) or not 1 <= len(request.remarks) <= 100:
+            raise InvalidPaymentRequest("remarks must be 1-100 characters")
+        if not isinstance(request.occasion, str) or not 1 <= len(request.occasion) <= 100:
+            raise InvalidPaymentRequest("occasion must be 1-100 characters")
+        originator = request.originator_conversation_id.strip()
+        if not originator or len(originator) > 64:
+            raise InvalidPaymentRequest("originator_conversation_id is required")
+        idempotency_key = require_idempotency_key(request.idempotency_key)
+        token = self.obtain_token()
+        payload = {
+            "OriginatorConversationID": originator,
+            "InitiatorName": self.initiator_name,
+            "SecurityCredential": self.security_credential,
+            "CommandID": "BusinessPayment",
+            "Amount": shillings,
+            "PartyA": self.b2c_shortcode,
+            "PartyB": msisdn,
+            "Remarks": request.remarks,
+            "QueueTimeOutURL": request.timeout_url,
+            "ResultURL": request.result_url,
+            "Occasion": request.occasion,
+        }
+        response = self._client.post(
+            self._url("mpesa/b2c/v1/paymentrequest"),
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {token.token}",
+                "X-Idempotency-Key": idempotency_key,
+            },
+        )
+        body = _json_or_empty(response)
+        if response.status_code == 409:
+            raise IdempotencyConflict(_error_message(body, "idempotency key was reused"))
+        if response.status_code != 200:
+            raise ProviderError(
+                _error_message(body, "B2C payment was rejected"),
+                status_code=response.status_code,
+            )
+        try:
+            accepted = B2cAccepted(
+                conversation_id=str(body["ConversationID"]),
+                originator_conversation_id=str(body["OriginatorConversationID"]),
+                response_code=str(body["ResponseCode"]),
+                response_description=str(body["ResponseDescription"]),
+            )
+        except KeyError as exc:
+            raise ProviderError("B2C response was missing ConversationID") from exc
+        if accepted.response_code != "0":
+            raise ProviderError(
+                f"B2C was not accepted (ResponseCode {accepted.response_code}): "
+                f"{accepted.response_description}"
+            )
+        return accepted
+
+    def parse_b2c_result(self, payload: object) -> B2cResult:
+        return parse_b2c_result(payload)
+
     def _url(self, path: str) -> str:
         return f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
 
@@ -276,6 +385,16 @@ def _json_or_empty(response: httpx.Response) -> dict[str, Any]:
 def _error_message(body: Mapping[str, Any], fallback: str) -> str:
     message = body.get("errorMessage") or body.get("message")
     return str(message) if message else fallback
+
+
+def _result_parameter_values(items: object) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    if not isinstance(items, list):
+        return values
+    for item in items:
+        if isinstance(item, Mapping) and "Key" in item:
+            values[str(item["Key"])] = item.get("Value")
+    return values
 
 
 def _metadata_values(items: object) -> dict[str, Any]:

@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session
 from xmoney.errors import RateLimited
 from xmoney.ratelimit import service
 from xmoney.ratelimit.models import RateLimitHit
-from xmoney.ratelimit.service import REGISTER, SIGN_IN, START_TOPUP, Limit, enforce, prune
+from xmoney.ratelimit.service import (
+    REGISTER,
+    SIGN_IN,
+    START_CASHOUT,
+    START_TOPUP,
+    Limit,
+    enforce,
+    prune,
+)
 
 # Every limit's window starts on the hour, so no test can straddle a window boundary.
 FROZEN_NOW = datetime(2026, 10, 13, 12, 0, 30, tzinfo=UTC)
@@ -89,6 +97,20 @@ def test_top_ups_are_limited_per_user(client, sign_up, configure) -> None:
         assert over_cap.status_code == 422
     refused = client.post(
         "/v1/topups", json={"amount_cents": 200}, headers={"Idempotency-Key": "t-last"}
+    )
+    assert refused.status_code == 429
+
+
+def test_cash_outs_are_limited_per_user(client, sign_up, configure) -> None:
+    configure(RATE_LIMITS_ENABLED="true")
+    sign_up("amina", "+254712345678")
+    for n in range(START_CASHOUT.limit):
+        overdrawn = client.post(
+            "/v1/cashouts", json={"amount_cents": 100}, headers={"Idempotency-Key": f"c-{n}"}
+        )
+        assert overdrawn.status_code == 422
+    refused = client.post(
+        "/v1/cashouts", json={"amount_cents": 100}, headers={"Idempotency-Key": "c-last"}
     )
     assert refused.status_code == 429
 

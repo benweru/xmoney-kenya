@@ -26,7 +26,7 @@ def _balances(db: Session) -> dict[str, int]:
 
 def test_seed_adds_three_wallets_with_history(db: Session) -> None:
     assert seed(db) is True
-    assert _balances(db) == {"amina": 2_850_00, "baraka": 2_750_00, "wanjiku": 5_900_00}
+    assert _balances(db) == {"amina": 2_350_00, "baraka": 2_750_00, "wanjiku": 5_900_00}
 
     topups = db.scalars(select(Topup)).all()
     assert len(topups) == 4
@@ -39,7 +39,7 @@ def test_seed_adds_three_wallets_with_history(db: Session) -> None:
         db, user_id=amina.user_id, wallet_account_id=amina.wallet_account_id, limit=10
     )
     kinds = [item.kind.value for item in page.items]
-    assert kinds == ["transfer_out", "transfer_in", "transfer_out", "topup"]
+    assert kinds == ["cashout", "transfer_out", "transfer_in", "transfer_out", "topup"]
 
 
 def test_seed_runs_once(db: Session) -> None:
@@ -70,7 +70,7 @@ def test_reset_removes_visitors_and_restores_the_seed(db: Session) -> None:
     reset(db)
     handles = set(db.scalars(select(User.handle)).all())
     assert handles == {demo.handle for demo in DEMO_USERS}
-    assert _balances(db) == {"amina": 2_850_00, "baraka": 2_750_00, "wanjiku": 5_900_00}
+    assert _balances(db) == {"amina": 2_350_00, "baraka": 2_750_00, "wanjiku": 5_900_00}
 
 
 def test_reset_needs_confirmation(capsys: pytest.CaptureFixture[str]) -> None:

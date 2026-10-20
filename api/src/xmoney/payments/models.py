@@ -9,6 +9,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -125,6 +126,135 @@ class StkCallbackLog(Base):
         nullable=True,
     )
     result_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    disposition: Mapped[str] = mapped_column(String(20), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class CashoutStatus(StrEnum):
+    INITIATED = "initiated"
+    PENDING = "pending"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class Cashout(Base):
+    __tablename__ = "cashouts"
+    __table_args__ = (
+        CheckConstraint(
+            "amount_cents > 0 AND amount_cents % 100 = 0", name="ck_cashouts_whole_shillings"
+        ),
+        CheckConstraint(
+            "status IN ('initiated', 'pending', 'succeeded', 'failed', 'expired')",
+            name="ck_cashouts_status",
+        ),
+        CheckConstraint(
+            "(status = 'succeeded') = (settle_journal_entry_id IS NOT NULL)",
+            name="ck_cashouts_succeeded_has_settle",
+        ),
+        CheckConstraint(
+            "(status = 'failed') = (release_journal_entry_id IS NOT NULL)",
+            name="ck_cashouts_failed_has_release",
+        ),
+        CheckConstraint(
+            "status IN ('initiated', 'failed') OR conversation_id IS NOT NULL",
+            name="ck_cashouts_pending_has_conversation",
+        ),
+        CheckConstraint("char_length(request_hash) = 64", name="ck_cashouts_hash_len"),
+        UniqueConstraint("user_id", "idempotency_key", name="uq_cashouts_user_idempotency_key"),
+        UniqueConstraint(
+            "originator_conversation_id", name="uq_cashouts_originator_conversation_id"
+        ),
+        UniqueConstraint("conversation_id", name="uq_cashouts_conversation_id"),
+        UniqueConstraint("mpesa_receipt_number", name="uq_cashouts_mpesa_receipt_number"),
+        UniqueConstraint("hold_journal_entry_id", name="uq_cashouts_hold_journal_entry_id"),
+        UniqueConstraint("settle_journal_entry_id", name="uq_cashouts_settle_journal_entry_id"),
+        UniqueConstraint("release_journal_entry_id", name="uq_cashouts_release_journal_entry_id"),
+        Index("ix_cashouts_status_created", "status", "created_at"),
+        {"comment": ("B2C cash-outs: hold the wallet, then settle or release on the rail result.")},
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", name="fk_cashouts_user_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    wallet_account_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("ledger_accounts.id", name="fk_cashouts_wallet_account_id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    phone_e164: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider: Mapped[str] = mapped_column(String(40), nullable=False)
+    originator_conversation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_desc: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    mpesa_receipt_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    hold_journal_entry_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "journal_entries.id", name="fk_cashouts_hold_journal_entry_id", ondelete="RESTRICT"
+        ),
+        nullable=False,
+    )
+    settle_journal_entry_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "journal_entries.id", name="fk_cashouts_settle_journal_entry_id", ondelete="RESTRICT"
+        ),
+        nullable=True,
+    )
+    release_journal_entry_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey(
+            "journal_entries.id", name="fk_cashouts_release_journal_entry_id", ondelete="RESTRICT"
+        ),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class B2cCallbackLog(Base):
+    __tablename__ = "b2c_callbacks"
+    __table_args__ = (
+        CheckConstraint(
+            "disposition IN ("
+            "'applied', 'duplicate', 'conflict', 'amount_mismatch', 'unmatched', 'recorded')",
+            name="ck_b2c_callbacks_disposition",
+        ),
+        Index("ix_b2c_callbacks_originator_conversation_id", "originator_conversation_id"),
+        {
+            "comment": (
+                "Every B2C result or timeout callback, and what it did. Duplicates are kept."
+            )
+        },
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
+    originator_conversation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cashout_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("cashouts.id", name="fk_b2c_callbacks_cashout_id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    result_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    timed_out: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     disposition: Mapped[str] = mapped_column(String(20), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     received_at: Mapped[datetime] = mapped_column(
