@@ -22,6 +22,7 @@ def import_mapped_tables() -> None:
     is imported. The API loads models through routes; the worker does not.
     """
     from xmoney.auth import models as auth_models  # noqa: F401
+    from xmoney.console import models as console_models  # noqa: F401
     from xmoney.identity import models as identity_models  # noqa: F401
     from xmoney.inbox import models as inbox_models  # noqa: F401
     from xmoney.ledger import models as ledger_models  # noqa: F401

@@ -257,6 +257,210 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/console/audit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Audit */
+    get: operations["console_audit_v1_console_audit_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/journal/{entry_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Journal */
+    get: operations["console_journal_v1_console_journal__entry_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/me": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Staff Me */
+    get: operations["staff_me_v1_console_me_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/outbox/dlq": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Dlq */
+    get: operations["console_dlq_v1_console_outbox_dlq_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/outbox/{job_id}/replay": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Console Replay Dlq */
+    post: operations["console_replay_dlq_v1_console_outbox__job_id__replay_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/recon/latest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Recon */
+    get: operations["console_recon_v1_console_recon_latest_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/sign-in": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Staff Sign In */
+    post: operations["staff_sign_in_v1_console_sign_in_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/sign-out": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Staff Sign Out */
+    post: operations["staff_sign_out_v1_console_sign_out_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/suspense": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Suspense */
+    get: operations["console_suspense_v1_console_suspense_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Lookup User */
+    get: operations["console_lookup_user_v1_console_users_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/users/{user_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console Get User */
+    get: operations["console_get_user_v1_console_users__user_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/users/{user_id}/ledger": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console User Ledger */
+    get: operations["console_user_ledger_v1_console_users__user_id__ledger_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/handles/{handle}": {
     parameters: {
       query?: never;
@@ -684,6 +888,205 @@ export interface components {
        */
       expires_at: string;
     };
+    /** ConsoleAuditEventOut */
+    ConsoleAuditEventOut: {
+      /** Action */
+      action: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Detail */
+      detail: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Resource Id */
+      resource_id: string | null;
+      /** Resource Type */
+      resource_type: string;
+      /** Staff Handle */
+      staff_handle: string;
+    };
+    /** ConsoleDlqJobOut */
+    ConsoleDlqJobOut: {
+      /** Attempts */
+      attempts: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Kind */
+      kind: string;
+      /** Last Error */
+      last_error: string | null;
+      /** Payload */
+      payload: {
+        [key: string]: unknown;
+      };
+      /** Replays */
+      replays: number;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** ConsoleHistoryItemOut */
+    ConsoleHistoryItemOut: {
+      /** Amount Cents */
+      amount_cents: number;
+      /** Counterparty */
+      counterparty: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Entry Id
+       * Format: uuid
+       */
+      entry_id: string;
+      /** Kind */
+      kind: string;
+      /** Mpesa Receipt */
+      mpesa_receipt: string | null;
+      /** Note */
+      note: string | null;
+    };
+    /** ConsoleHistoryPageOut */
+    ConsoleHistoryPageOut: {
+      /** Items */
+      items: components["schemas"]["ConsoleHistoryItemOut"][];
+      /** Next Cursor */
+      next_cursor: string | null;
+    };
+    /** ConsoleJournalOut */
+    ConsoleJournalOut: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Description */
+      description: string;
+      /** External Ref */
+      external_ref: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Postings */
+      postings: components["schemas"]["ConsoleJournalPostingOut"][];
+    };
+    /** ConsoleJournalPostingOut */
+    ConsoleJournalPostingOut: {
+      /** Account Code */
+      account_code: string;
+      /**
+       * Account Id
+       * Format: uuid
+       */
+      account_id: string;
+      /** Amount Cents */
+      amount_cents: number;
+      /** Direction */
+      direction: string;
+      /** Line No */
+      line_no: number;
+    };
+    /** ConsoleReconBreakOut */
+    ConsoleReconBreakOut: {
+      /** Detail */
+      detail: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Kind */
+      kind: string;
+      /** Our Cents */
+      our_cents: number | null;
+      /** Subject Id */
+      subject_id: string | null;
+      /** Subject Type */
+      subject_type: string;
+      /** Their Cents */
+      their_cents: number | null;
+    };
+    /** ConsoleReconLatestOut */
+    ConsoleReconLatestOut: {
+      /** Break Count */
+      break_count: number;
+      /** Breaks */
+      breaks: components["schemas"]["ConsoleReconBreakOut"][];
+      /** Finished At */
+      finished_at: string | null;
+      /** Run Id */
+      run_id: string | null;
+      /** Started At */
+      started_at: string | null;
+      /** Unexplained Count */
+      unexplained_count: number;
+    };
+    /** ConsoleSuspenseOut */
+    ConsoleSuspenseOut: {
+      /** Amount Cents */
+      amount_cents: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Open Reason */
+      open_reason: string;
+      /** Recon Break Id */
+      recon_break_id: string | null;
+      /** Resolve Reason */
+      resolve_reason: string | null;
+      /** Resolved At */
+      resolved_at: string | null;
+      /** Status */
+      status: string;
+      /** Wallet Account Id */
+      wallet_account_id: string | null;
+    };
+    /** ConsoleUserOut */
+    ConsoleUserOut: {
+      /** Balance Cents */
+      balance_cents: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Handle */
+      handle: string;
+      /** Phone */
+      phone: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+      /**
+       * Wallet Account Id
+       * Format: uuid
+       */
+      wallet_account_id: string;
+    };
     /**
      * Direction
      * @enum {string}
@@ -869,6 +1272,29 @@ export interface components {
        * @example +254712345678
        */
       phone: string;
+      /**
+       * Pin
+       * @example 2580
+       */
+      pin: string;
+    };
+    /** StaffMeOut */
+    StaffMeOut: {
+      /** Handle */
+      handle: string;
+      /**
+       * Staff User Id
+       * Format: uuid
+       */
+      staff_user_id: string;
+    };
+    /** StaffSignInIn */
+    StaffSignInIn: {
+      /**
+       * Handle
+       * @example ops
+       */
+      handle: string;
       /**
        * Pin
        * @example 2580
@@ -1484,6 +1910,313 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CashoutOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_audit_v1_console_audit_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleAuditEventOut"][];
+        };
+      };
+    };
+  };
+  console_journal_v1_console_journal__entry_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleJournalOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  staff_me_v1_console_me_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StaffMeOut"];
+        };
+      };
+    };
+  };
+  console_dlq_v1_console_outbox_dlq_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleDlqJobOut"][];
+        };
+      };
+    };
+  };
+  console_replay_dlq_v1_console_outbox__job_id__replay_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        job_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_recon_v1_console_recon_latest_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleReconLatestOut"];
+        };
+      };
+    };
+  };
+  staff_sign_in_v1_console_sign_in_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["StaffSignInIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StaffMeOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  staff_sign_out_v1_console_sign_out_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  console_suspense_v1_console_suspense_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleSuspenseOut"][];
+        };
+      };
+    };
+  };
+  console_lookup_user_v1_console_users_get: {
+    parameters: {
+      query: {
+        handle: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleUserOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_get_user_v1_console_users__user_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleUserOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_user_ledger_v1_console_users__user_id__ledger_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string | null;
+      };
+      header?: never;
+      path: {
+        user_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleHistoryPageOut"];
         };
       };
       /** @description Validation Error */

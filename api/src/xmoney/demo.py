@@ -9,7 +9,8 @@ Seed top-ups go through the real top-up code with a rail that approves at
 once, seed sends go through the real transfer code, and one seed cash-out
 goes through the real B2C hold, so the history a visitor sees is the same
 shape as their own. Seed wallets have no PIN unless DEMO_SEED_PIN is set, so
-nobody can sign in as them on the public demo.
+nobody can sign in as them on the public demo. The seed also adds staff
+`@ops` with PIN 2580 (override DEMO_STAFF_HANDLE / DEMO_STAFF_PIN).
 """
 
 from __future__ import annotations
@@ -25,6 +26,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from xmoney.auth import models as auth_models  # noqa: F401
+from xmoney.console import models as console_models  # noqa: F401
+from xmoney.console.service import seed_staff_user
 from xmoney.db import Base, get_sessionmaker
 from xmoney.identity import models as identity_models
 from xmoney.identity.service import RegisteredUser, register_user
@@ -124,6 +127,7 @@ def seed(session: Session) -> bool:
     """Add the demo wallets and their history. Returns False if they are already there."""
     first = DEMO_USERS[0].handle
     if session.scalar(select(identity_models.User.id).where(identity_models.User.handle == first)):
+        seed_staff_user(session)
         return False
     session.rollback()
     pin = os.environ.get("DEMO_SEED_PIN") or None
@@ -147,6 +151,7 @@ def seed(session: Session) -> bool:
             note=note,
         )
     _seed_cashout(session, rail, users["amina"], 500, key="seed:cashout:amina")
+    seed_staff_user(session)
     return True
 
 

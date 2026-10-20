@@ -317,6 +317,542 @@
         "title": "ChallengeOut",
         "type": "object"
       },
+      "ConsoleAuditEventOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          },
+          "staff_handle": {
+            "title": "Staff Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "staff_handle",
+          "action",
+          "resource_type",
+          "resource_id",
+          "detail",
+          "created_at"
+        ],
+        "title": "ConsoleAuditEventOut",
+        "type": "object"
+      },
+      "ConsoleDlqJobOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "replays": {
+            "title": "Replays",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "attempts",
+          "replays",
+          "last_error",
+          "updated_at",
+          "payload"
+        ],
+        "title": "ConsoleDlqJobOut",
+        "type": "object"
+      },
+      "ConsoleHistoryItemOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "counterparty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counterparty"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entry_id": {
+            "format": "uuid",
+            "title": "Entry Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "mpesa_receipt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Receipt"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "entry_id",
+          "kind",
+          "amount_cents",
+          "counterparty",
+          "note",
+          "mpesa_receipt",
+          "created_at"
+        ],
+        "title": "ConsoleHistoryItemOut",
+        "type": "object"
+      },
+      "ConsoleHistoryPageOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConsoleHistoryItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ConsoleHistoryPageOut",
+        "type": "object"
+      },
+      "ConsoleJournalOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "postings": {
+            "items": {
+              "$ref": "#/components/schemas/ConsoleJournalPostingOut"
+            },
+            "title": "Postings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "external_ref",
+          "created_at",
+          "postings"
+        ],
+        "title": "ConsoleJournalOut",
+        "type": "object"
+      },
+      "ConsoleJournalPostingOut": {
+        "properties": {
+          "account_code": {
+            "title": "Account Code",
+            "type": "string"
+          },
+          "account_id": {
+            "format": "uuid",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "direction": {
+            "title": "Direction",
+            "type": "string"
+          },
+          "line_no": {
+            "title": "Line No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "line_no",
+          "account_id",
+          "account_code",
+          "direction",
+          "amount_cents"
+        ],
+        "title": "ConsoleJournalPostingOut",
+        "type": "object"
+      },
+      "ConsoleReconBreakOut": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "our_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Our Cents"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "subject_type": {
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "their_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Their Cents"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "subject_type",
+          "subject_id",
+          "our_cents",
+          "their_cents",
+          "detail"
+        ],
+        "title": "ConsoleReconBreakOut",
+        "type": "object"
+      },
+      "ConsoleReconLatestOut": {
+        "properties": {
+          "break_count": {
+            "title": "Break Count",
+            "type": "integer"
+          },
+          "breaks": {
+            "items": {
+              "$ref": "#/components/schemas/ConsoleReconBreakOut"
+            },
+            "title": "Breaks",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "unexplained_count": {
+            "title": "Unexplained Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "started_at",
+          "finished_at",
+          "break_count",
+          "unexplained_count",
+          "breaks"
+        ],
+        "title": "ConsoleReconLatestOut",
+        "type": "object"
+      },
+      "ConsoleSuspenseOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "open_reason": {
+            "title": "Open Reason",
+            "type": "string"
+          },
+          "recon_break_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recon Break Id"
+          },
+          "resolve_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolve Reason"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "wallet_account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wallet Account Id"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amount_cents",
+          "open_reason",
+          "resolve_reason",
+          "recon_break_id",
+          "wallet_account_id",
+          "created_at",
+          "resolved_at"
+        ],
+        "title": "ConsoleSuspenseOut",
+        "type": "object"
+      },
+      "ConsoleUserOut": {
+        "properties": {
+          "balance_cents": {
+            "title": "Balance Cents",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "wallet_account_id": {
+            "format": "uuid",
+            "title": "Wallet Account Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "handle",
+          "phone",
+          "wallet_account_id",
+          "balance_cents",
+          "created_at"
+        ],
+        "title": "ConsoleUserOut",
+        "type": "object"
+      },
       "Direction": {
         "enum": [
           "debit",
@@ -753,6 +1289,50 @@
           "pin"
         ],
         "title": "SignInIn",
+        "type": "object"
+      },
+      "StaffMeOut": {
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_user_id",
+          "handle"
+        ],
+        "title": "StaffMeOut",
+        "type": "object"
+      },
+      "StaffSignInIn": {
+        "additionalProperties": false,
+        "properties": {
+          "handle": {
+            "examples": [
+              "ops"
+            ],
+            "title": "Handle",
+            "type": "string"
+          },
+          "pin": {
+            "examples": [
+              "2580"
+            ],
+            "title": "Pin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "pin"
+        ],
+        "title": "StaffSignInIn",
         "type": "object"
       },
       "StkPushBody": {
@@ -1744,6 +2324,413 @@
         "summary": "Read Cashout",
         "tags": [
           "top-ups"
+        ]
+      }
+    },
+    "/v1/console/audit": {
+      "get": {
+        "operationId": "console_audit_v1_console_audit_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsoleAuditEventOut"
+                  },
+                  "title": "Response Console Audit V1 Console Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Console Audit",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/journal/{entry_id}": {
+      "get": {
+        "operationId": "console_journal_v1_console_journal__entry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleJournalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Journal",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/me": {
+      "get": {
+        "operationId": "staff_me_v1_console_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Staff Me",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/outbox/dlq": {
+      "get": {
+        "operationId": "console_dlq_v1_console_outbox_dlq_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsoleDlqJobOut"
+                  },
+                  "title": "Response Console Dlq V1 Console Outbox Dlq Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Console Dlq",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/outbox/{job_id}/replay": {
+      "post": {
+        "operationId": "console_replay_dlq_v1_console_outbox__job_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Replay Dlq",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/recon/latest": {
+      "get": {
+        "operationId": "console_recon_v1_console_recon_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleReconLatestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Console Recon",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/sign-in": {
+      "post": {
+        "operationId": "staff_sign_in_v1_console_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffSignInIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Staff Sign In",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/sign-out": {
+      "post": {
+        "operationId": "staff_sign_out_v1_console_sign_out_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Staff Sign Out",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/suspense": {
+      "get": {
+        "operationId": "console_suspense_v1_console_suspense_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsoleSuspenseOut"
+                  },
+                  "title": "Response Console Suspense V1 Console Suspense Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Console Suspense",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/users": {
+      "get": {
+        "operationId": "console_lookup_user_v1_console_users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleUserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Lookup User",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/users/{user_id}": {
+      "get": {
+        "operationId": "console_get_user_v1_console_users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleUserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Get User",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/users/{user_id}/ledger": {
+      "get": {
+        "operationId": "console_user_ledger_v1_console_users__user_id__ledger_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleHistoryPageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console User Ledger",
+        "tags": [
+          "console"
         ]
       }
     },

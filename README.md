@@ -13,7 +13,7 @@ A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insen
 
 ## The wallet app
 
-A mobile-first PWA in [`web/`](web/): register with a handle, a phone, and a PIN, sign in with a code from the sandbox inbox, top up through an M-PESA STK prompt with a live status, send to an @handle, and read your history. `make demo` runs it on <http://localhost:3000> against the Daraja mock.
+A mobile-first PWA in [`web/`](web/): register with a handle, a phone, and a PIN, sign in with a code from the sandbox inbox, top up through an M-PESA STK prompt with a live status, send to an @handle, and read your history. Staff use a separate session at [`/console/`](docs/runbooks/console.md) (demo `@ops` / `2580`) for lookup, recon, suspense, and the outbox DLQ; that login cannot mint. `make demo` runs it on <http://localhost:3000> against the Daraja mock.
 
 <p>
   <img src="docs/images/wallet-home.png" alt="Home: balance and recent activity" width="200" />
@@ -38,7 +38,7 @@ Milestone M4 of the roadmap is a write-up of that gap. It is not a shortcut thro
 
 ```text
 api/        FastAPI backend: ledger, @handles, payments seam, Daraja mock, Alembic, pytest
-web/        Next.js + TypeScript wallet PWA, Playwright e2e tests
+web/        Next.js + TypeScript wallet PWA and /console staff UI, Playwright e2e tests
 infra/      Terraform for the AWS demo (bootstrap, foundation, app) and its scripts
 docs/adr/   architecture decision records
 docs/runbooks/  step-by-step operations: Daraja sandbox, first AWS deploy, AWS costs
@@ -345,6 +345,7 @@ Coverage that matters for a ledger:
 - Demo seed and reset: the seed goes through the real top-up and transfer code, runs once, and leaves no PIN; reset removes visitors and restores the seed.
 - Suspense: unmatched value parks as debit float / credit `system:suspense`, then a CLI apply or refund posts the compensating entry; there is no HTTP mint.
 - Reversals: a new compensating journal entry; at or above KES 100 a second actor must approve. Spent funds refuse the reverse rather than overdraw.
+- Staff console: wallet cookies cannot open `/v1/console/*`; `@ops` is a separate PIN session; HTTP is read-only except DLQ replay.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a success callback is recorded and the wallet is credited only after STK Query confirms; a callback that beats the push response is confirmed the same way; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, forged (wrong token), and forged success (correct token, query not paid) callbacks move no money; Postgres rejects illegal transitions.
 
 ## The AWS demo

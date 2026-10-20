@@ -78,7 +78,8 @@ def clean_tables(engine: Engine) -> Iterator[None]:
                 text(
                     "TRUNCATE TABLE postings, journal_entries, ledger_accounts, users, "
                     "sandbox_inbox, rate_limit_hits, outbox_jobs, fee_schedules, "
-                    "recon_breaks, recon_runs, suspense_items, reversals "
+                    "recon_breaks, recon_runs, suspense_items, reversals, "
+                    "staff_audit_events, staff_sessions, staff_users "
                     "RESTART IDENTITY CASCADE"
                 )
             )

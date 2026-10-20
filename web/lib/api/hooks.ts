@@ -16,6 +16,7 @@ import {
   type Cashout,
   type Me,
   type Rail,
+  type StaffMe,
   type Topup,
 } from "./client";
 
@@ -33,6 +34,14 @@ export const keys = {
   cashout: (id: string) => ["cashout", id] as const,
   rails: ["rails"] as const,
   inbox: (phone: string) => ["inbox", phone] as const,
+  staffMe: ["staff-me"] as const,
+  consoleUser: (handle: string) => ["console-user", handle] as const,
+  consoleLedger: (userId: string) => ["console-ledger", userId] as const,
+  consoleJournal: (entryId: string) => ["console-journal", entryId] as const,
+  consoleRecon: ["console-recon"] as const,
+  consoleSuspense: ["console-suspense"] as const,
+  consoleDlq: ["console-dlq"] as const,
+  consoleAudit: ["console-audit"] as const,
 };
 
 /** The signed-in user, or null when there is no session. Other errors still throw. */
@@ -116,6 +125,127 @@ export function useSignOut() {
       resetWallet(queryClient);
       queryClient.setQueryData(keys.me, null);
     },
+  });
+}
+
+export function useStaffMe() {
+  return useQuery({
+    queryKey: keys.staffMe,
+    queryFn: async (): Promise<StaffMe | null> => {
+      try {
+        return await unwrap(api.GET("/v1/console/me"));
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) return null;
+        throw error;
+      }
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useStaffSignIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { handle: string; pin: string }) =>
+      unwrap(api.POST("/v1/console/sign-in", { body })),
+    onSuccess: (staff) => {
+      queryClient.setQueryData(keys.staffMe, staff);
+    },
+  });
+}
+
+export function useStaffSignOut() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => unwrap(api.POST("/v1/console/sign-out")),
+    onSettled: () => {
+      queryClient.setQueryData(keys.staffMe, null);
+      queryClient.removeQueries({ queryKey: ["console-user"] });
+      queryClient.removeQueries({ queryKey: ["console-ledger"] });
+      queryClient.removeQueries({ queryKey: ["console-journal"] });
+      queryClient.removeQueries({ queryKey: keys.consoleRecon });
+      queryClient.removeQueries({ queryKey: keys.consoleSuspense });
+      queryClient.removeQueries({ queryKey: keys.consoleDlq });
+      queryClient.removeQueries({ queryKey: keys.consoleAudit });
+    },
+  });
+}
+
+export function useConsoleUser(handle: string | null) {
+  return useQuery({
+    queryKey: keys.consoleUser(handle ?? ""),
+    enabled: !!handle,
+    queryFn: () => unwrap(api.GET("/v1/console/users", { params: { query: { handle: handle! } } })),
+  });
+}
+
+export function useConsoleUserLedger(userId: string | null) {
+  return useQuery({
+    queryKey: keys.consoleLedger(userId ?? ""),
+    enabled: !!userId,
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/console/users/{user_id}/ledger", {
+          params: { path: { user_id: userId! } },
+        }),
+      ),
+  });
+}
+
+export function useConsoleJournal(entryId: string | null) {
+  return useQuery({
+    queryKey: keys.consoleJournal(entryId ?? ""),
+    enabled: !!entryId,
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/console/journal/{entry_id}", {
+          params: { path: { entry_id: entryId! } },
+        }),
+      ),
+  });
+}
+
+export function useConsoleRecon() {
+  return useQuery({
+    queryKey: keys.consoleRecon,
+    queryFn: () => unwrap(api.GET("/v1/console/recon/latest")),
+  });
+}
+
+export function useConsoleSuspense() {
+  return useQuery({
+    queryKey: keys.consoleSuspense,
+    queryFn: () => unwrap(api.GET("/v1/console/suspense")),
+  });
+}
+
+export function useConsoleDlq() {
+  return useQuery({
+    queryKey: keys.consoleDlq,
+    queryFn: () => unwrap(api.GET("/v1/console/outbox/dlq")),
+  });
+}
+
+export function useReplayDlq() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      unwrap(
+        api.POST("/v1/console/outbox/{job_id}/replay", {
+          params: { path: { job_id: jobId } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleDlq });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+    },
+  });
+}
+
+export function useConsoleAudit() {
+  return useQuery({
+    queryKey: keys.consoleAudit,
+    queryFn: () => unwrap(api.GET("/v1/console/audit")),
   });
 }
 
