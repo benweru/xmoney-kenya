@@ -2,8 +2,8 @@
 
 Opening always posts debit `system:mpesa_float`, credit `system:suspense`: we
 recorded cash we cannot yet name. Applying posts debit suspense, credit the
-wallet. Refunding posts debit suspense, credit float. There is no HTTP route;
-the public demo must not mint through this path.
+wallet. Refunding posts debit suspense, credit float. HTTP apply/refund is
+staff-session only and off on a public https demo (ADR 019). Opening stays CLI.
 """
 
 from __future__ import annotations
@@ -33,12 +33,22 @@ class SuspenseView:
     open_reason: str
     resolve_reason: str | None
     recon_break_id: UUID | None
+    wallet_account_id: UUID | None
+    created_at: datetime | None
+    resolved_at: datetime | None
 
 
 def _reason(value: str) -> str:
     cleaned = " ".join(value.split())
     if not cleaned or len(cleaned) > 500:
         raise InvalidSuspense("reason must be 1-500 characters")
+    return cleaned
+
+
+def _actor(value: str) -> str:
+    cleaned = value.strip().lstrip("@").lower()
+    if not cleaned or len(cleaned) > 40:
+        raise InvalidSuspense("actor must be 1-40 characters")
     return cleaned
 
 
@@ -90,8 +100,16 @@ def open_suspense(
         return _view(item)
 
 
-def apply_to_wallet(session: Session, *, item_id: UUID, handle: str, reason: str) -> SuspenseView:
+def apply_to_wallet(
+    session: Session,
+    *,
+    item_id: UUID,
+    handle: str,
+    reason: str,
+    actor: str = "cli",
+) -> SuspenseView:
     note = _reason(reason)
+    who = _actor(actor)
     recipient = lookup_handle(session, handle)
     release_read_transaction(session)
     with session.begin():
@@ -101,7 +119,7 @@ def apply_to_wallet(session: Session, *, item_id: UUID, handle: str, reason: str
             session,
             PostCommand(
                 idempotency_key=f"suspense-apply:{item.id}",
-                description=f"Suspense to @{recipient.handle}: {note}"[:500],
+                description=f"Suspense to @{recipient.handle} by @{who}: {note}"[:500],
                 postings=(
                     PostingLine(SUSPENSE.id, Direction.DEBIT, item.amount_cents),
                     PostingLine(recipient.wallet_account_id, Direction.CREDIT, item.amount_cents),
@@ -117,8 +135,11 @@ def apply_to_wallet(session: Session, *, item_id: UUID, handle: str, reason: str
         return _view(item)
 
 
-def refund_to_float(session: Session, *, item_id: UUID, reason: str) -> SuspenseView:
+def refund_to_float(
+    session: Session, *, item_id: UUID, reason: str, actor: str = "cli"
+) -> SuspenseView:
     note = _reason(reason)
+    who = _actor(actor)
     release_read_transaction(session)
     with session.begin():
         item = _lock_open(session, item_id)
@@ -126,7 +147,7 @@ def refund_to_float(session: Session, *, item_id: UUID, reason: str) -> Suspense
             session,
             PostCommand(
                 idempotency_key=f"suspense-refund:{item.id}",
-                description=f"Suspense refund: {note}"[:500],
+                description=f"Suspense refund by @{who}: {note}"[:500],
                 postings=(
                     PostingLine(SUSPENSE.id, Direction.DEBIT, item.amount_cents),
                     PostingLine(MPESA_FLOAT.id, Direction.CREDIT, item.amount_cents),
@@ -158,4 +179,7 @@ def _view(item: SuspenseItem) -> SuspenseView:
         open_reason=item.open_reason,
         resolve_reason=item.resolve_reason,
         recon_break_id=item.recon_break_id,
+        wallet_account_id=item.wallet_account_id,
+        created_at=item.created_at,
+        resolved_at=item.resolved_at,
     )

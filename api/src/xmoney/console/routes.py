@@ -1,14 +1,15 @@
-"""Staff console HTTP. Read-only except DLQ replay, which does not mint."""
+"""Staff console HTTP. Money-moving writes are local-only (ADR 019)."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from xmoney.config import get_settings
-from xmoney.console.deps import STAFF_COOKIE, current_staff
+from xmoney.console.deps import STAFF_COOKIE, current_staff, require_console_money_moving
 from xmoney.console.schemas import (
     ConsoleAuditEventOut,
     ConsoleDlqJobOut,
@@ -18,7 +19,12 @@ from xmoney.console.schemas import (
     ConsoleJournalPostingOut,
     ConsoleReconBreakOut,
     ConsoleReconLatestOut,
+    ConsoleReversalOut,
+    ConsoleReversalProposeIn,
+    ConsoleReversalRejectIn,
+    ConsoleSuspenseApplyIn,
     ConsoleSuspenseOut,
+    ConsoleSuspenseRefundIn,
     ConsoleUserOut,
     StaffMeOut,
     StaffSignInIn,
@@ -45,6 +51,14 @@ from xmoney.history.service import DEFAULT_LIMIT, MAX_LIMIT
 from xmoney.outbox.models import OutboxJob
 from xmoney.ratelimit.deps import limit_by_ip
 from xmoney.ratelimit.service import CONSOLE_SIGN_IN
+from xmoney.reversals.service import (
+    ReversalView,
+    approve_reversal,
+    list_reversals,
+    propose_reversal,
+    reject_reversal,
+)
+from xmoney.suspense.service import SuspenseView, apply_to_wallet, refund_to_float
 
 router = APIRouter(tags=["console"])
 
@@ -69,7 +83,7 @@ def staff_sign_in(
         path="/",
     )
     actor = authenticate_staff(session, issued.token)
-    return StaffMeOut(staff_user_id=actor.staff_user_id, handle=actor.handle)
+    return _staff_me(actor)
 
 
 @router.post("/console/sign-out", status_code=204)
@@ -82,7 +96,7 @@ def staff_sign_out(request: Request, session: Session = Depends(get_db)) -> Resp
 
 @router.get("/console/me", response_model=StaffMeOut)
 def staff_me(actor: StaffActor = Depends(current_staff)) -> StaffMeOut:
-    return StaffMeOut(staff_user_id=actor.staff_user_id, handle=actor.handle)
+    return _staff_me(actor)
 
 
 @router.get("/console/users", response_model=ConsoleUserOut)
@@ -260,6 +274,149 @@ def console_suspense(
     ]
 
 
+@router.post(
+    "/console/suspense/{item_id}/apply",
+    response_model=ConsoleSuspenseOut,
+    dependencies=[Depends(require_console_money_moving)],
+)
+def console_apply_suspense(
+    item_id: UUID,
+    body: ConsoleSuspenseApplyIn,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> ConsoleSuspenseOut:
+    view = apply_to_wallet(
+        session, item_id=item_id, handle=body.handle, reason=body.reason, actor=actor.handle
+    )
+    record_audit(
+        session,
+        actor,
+        action="apply_suspense",
+        resource_type="suspense",
+        resource_id=str(view.id),
+        detail=f"applied to @{body.handle.lstrip('@').lower()}: {body.reason}"[:500],
+    )
+    return _suspense_out(view)
+
+
+@router.post(
+    "/console/suspense/{item_id}/refund",
+    response_model=ConsoleSuspenseOut,
+    dependencies=[Depends(require_console_money_moving)],
+)
+def console_refund_suspense(
+    item_id: UUID,
+    body: ConsoleSuspenseRefundIn,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> ConsoleSuspenseOut:
+    view = refund_to_float(session, item_id=item_id, reason=body.reason, actor=actor.handle)
+    record_audit(
+        session,
+        actor,
+        action="refund_suspense",
+        resource_type="suspense",
+        resource_id=str(view.id),
+        detail=f"refunded to float: {body.reason}"[:500],
+    )
+    return _suspense_out(view)
+
+
+@router.get("/console/reversals", response_model=list[ConsoleReversalOut])
+def console_list_reversals(
+    original_journal_entry_id: UUID | None = None,
+    status: str | None = None,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> list[ConsoleReversalOut]:
+    items = list_reversals(
+        session, original_journal_entry_id=original_journal_entry_id, status=status
+    )
+    record_audit(
+        session,
+        actor,
+        action="view_reversals",
+        resource_type="reversal",
+        resource_id=str(original_journal_entry_id) if original_journal_entry_id else None,
+        detail=f"listed {len(items)} reversals",
+    )
+    return [_reversal_out(item) for item in items]
+
+
+@router.post(
+    "/console/reversals",
+    response_model=ConsoleReversalOut,
+    dependencies=[Depends(require_console_money_moving)],
+)
+def console_propose_reversal(
+    body: ConsoleReversalProposeIn,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> ConsoleReversalOut:
+    view = propose_reversal(
+        session,
+        original_journal_entry_id=body.original_journal_entry_id,
+        reason=body.reason,
+        maker=actor.handle,
+    )
+    record_audit(
+        session,
+        actor,
+        action="propose_reversal",
+        resource_type="reversal",
+        resource_id=str(view.id),
+        detail=f"proposed reverse of {body.original_journal_entry_id}: {body.reason}"[:500],
+    )
+    return _reversal_out(view)
+
+
+@router.post(
+    "/console/reversals/{reversal_id}/approve",
+    response_model=ConsoleReversalOut,
+    dependencies=[Depends(require_console_money_moving)],
+)
+def console_approve_reversal(
+    reversal_id: UUID,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> ConsoleReversalOut:
+    view = approve_reversal(session, reversal_id=reversal_id, checker=actor.handle)
+    record_audit(
+        session,
+        actor,
+        action="approve_reversal",
+        resource_type="reversal",
+        resource_id=str(view.id),
+        detail=f"approved reversal of {view.original_journal_entry_id}",
+    )
+    return _reversal_out(view)
+
+
+@router.post(
+    "/console/reversals/{reversal_id}/reject",
+    response_model=ConsoleReversalOut,
+    dependencies=[Depends(require_console_money_moving)],
+)
+def console_reject_reversal(
+    reversal_id: UUID,
+    body: ConsoleReversalRejectIn,
+    actor: StaffActor = Depends(current_staff),
+    session: Session = Depends(get_db),
+) -> ConsoleReversalOut:
+    view = reject_reversal(
+        session, reversal_id=reversal_id, checker=actor.handle, reason=body.reason
+    )
+    record_audit(
+        session,
+        actor,
+        action="reject_reversal",
+        resource_type="reversal",
+        resource_id=str(view.id),
+        detail=f"rejected reversal: {body.reason}"[:500],
+    )
+    return _reversal_out(view)
+
+
 @router.get("/console/outbox/dlq", response_model=list[ConsoleDlqJobOut])
 def console_dlq(
     actor: StaffActor = Depends(current_staff), session: Session = Depends(get_db)
@@ -305,6 +462,14 @@ def console_audit(
     ]
 
 
+def _staff_me(actor: StaffActor) -> StaffMeOut:
+    return StaffMeOut(
+        staff_user_id=actor.staff_user_id,
+        handle=actor.handle,
+        money_moving=get_settings().console_money_moving_enabled,
+    )
+
+
 def _user_out(customer: ConsoleUser) -> ConsoleUserOut:
     return ConsoleUserOut(
         user_id=customer.user_id,
@@ -313,6 +478,34 @@ def _user_out(customer: ConsoleUser) -> ConsoleUserOut:
         wallet_account_id=customer.wallet_account_id,
         balance_cents=customer.balance.balance_cents,
         created_at=customer.created_at,
+    )
+
+
+def _suspense_out(view: SuspenseView) -> ConsoleSuspenseOut:
+    return ConsoleSuspenseOut(
+        id=view.id,
+        status=view.status,
+        amount_cents=view.amount_cents,
+        open_reason=view.open_reason,
+        resolve_reason=view.resolve_reason,
+        recon_break_id=view.recon_break_id,
+        wallet_account_id=view.wallet_account_id,
+        created_at=view.created_at or datetime.now(UTC),
+        resolved_at=view.resolved_at,
+    )
+
+
+def _reversal_out(view: ReversalView) -> ConsoleReversalOut:
+    return ConsoleReversalOut(
+        id=view.id,
+        original_journal_entry_id=view.original_journal_entry_id,
+        amount_cents=view.amount_cents,
+        status=view.status,
+        reason=view.reason,
+        maker=view.maker,
+        checker=view.checker,
+        needs_checker=view.needs_checker,
+        created_at=view.created_at or datetime.now(UTC),
     )
 
 

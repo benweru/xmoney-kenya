@@ -1,4 +1,4 @@
-"""Operator CLI for reversals. Not an HTTP route; the public demo cannot mint this way."""
+"""Operator CLI for reversals. HTTP writes are staff-only and off on a public demo."""
 
 from __future__ import annotations
 

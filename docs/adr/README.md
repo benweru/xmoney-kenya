@@ -22,5 +22,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [016](016-suspense.md) | Suspense: park unmatched value, then apply or refund | Accepted |
 | [017](017-reversals.md) | Reversals are new entries; large ones need a second actor | Accepted |
 | [018](018-staff-console.md) | Staff console: a separate session, read-only money views, DLQ replay | Accepted |
+| [019](019-console-money-moving.md) | Console money-moving writes: local HTTP only | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.

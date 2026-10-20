@@ -13,7 +13,7 @@ A sandbox prototype of a pay-by-**@handle** wallet: people register a case-insen
 
 ## The wallet app
 
-A mobile-first PWA in [`web/`](web/): register with a handle, a phone, and a PIN, sign in with a code from the sandbox inbox, top up through an M-PESA STK prompt with a live status, send to an @handle, and read your history. Staff use a separate session at [`/console/`](docs/runbooks/console.md) (demo `@ops` / `2580`) for lookup, recon, suspense, and the outbox DLQ; that login cannot mint. `make demo` runs it on <http://localhost:3000> against the Daraja mock.
+A mobile-first PWA in [`web/`](web/): register with a handle, a phone, and a PIN, sign in with a code from the sandbox inbox, top up through an M-PESA STK prompt with a live status, send to an @handle, and read your history. Staff use a separate session at [`/console/`](docs/runbooks/console.md) (demo `@ops` / `2580`) for lookup, recon, suspense, reversals, and the outbox DLQ. On a **local** console they can apply, refund, and reverse; a **public https** demo cannot turn that minting surface on ([ADR 019](docs/adr/019-console-money-moving.md)). `make demo` runs it on <http://localhost:3000> against the Daraja mock.
 
 <p>
   <img src="docs/images/wallet-home.png" alt="Home: balance and recent activity" width="200" />
@@ -343,9 +343,9 @@ Coverage that matters for a ledger:
 - Open demo: the journal route is 404 by default and cannot be enabled behind `https`; registration, sign-in, and top-ups are refused past their limits; failed attempts count; forged `X-Forwarded-For` addresses do not get a fresh bucket.
 - Rails: each top-up is queried on the rail that took it; a rail that is no longer offered still expires; the sandbox rail refuses placeholder keys, and on a public URL it refuses to start without a phone allowlist.
 - Demo seed and reset: the seed goes through the real top-up and transfer code, runs once, and leaves no PIN; reset removes visitors and restores the seed.
-- Suspense: unmatched value parks as debit float / credit `system:suspense`, then a CLI apply or refund posts the compensating entry; there is no HTTP mint.
-- Reversals: a new compensating journal entry; at or above KES 100 a second actor must approve. Spent funds refuse the reverse rather than overdraw.
-- Staff console: wallet cookies cannot open `/v1/console/*`; `@ops` is a separate PIN session; HTTP is read-only except DLQ replay.
+- Suspense: unmatched value parks as debit float / credit `system:suspense`, then staff apply or refund posts the compensating entry; opening stays on the CLI.
+- Reversals: a new compensating journal entry; at or above KES 100 a second staff user must approve. Spent funds refuse the reverse rather than overdraw.
+- Staff console: wallet cookies cannot open `/v1/console/*`; `@ops` is a separate PIN session; apply/refund/reverse need that cookie and `CONSOLE_MONEY_MOVING_ENABLED` (404 when off; cannot enable behind `https`). No general journal-posting console route.
 - Top-ups: duplicate callbacks (including 10 concurrent copies) credit once; a success callback is recorded and the wallet is credited only after STK Query confirms; a callback that beats the push response is confirmed the same way; a dropped callback is recovered with STK Query; a late success after expiry still credits; contradicting, wrong-amount, unknown, forged (wrong token), and forged success (correct token, query not paid) callbacks move no money; Postgres rejects illegal transitions.
 
 ## The AWS demo

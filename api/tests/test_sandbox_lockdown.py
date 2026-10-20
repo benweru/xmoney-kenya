@@ -40,6 +40,7 @@ def test_journal_flag_cannot_be_on_behind_a_public_https_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SANDBOX_JOURNAL_ENABLED", "true")
+    monkeypatch.setenv("CONSOLE_MONEY_MOVING_ENABLED", "false")
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://d111111abcdef8.cloudfront.net/api")
     with pytest.raises(ValidationError, match="SANDBOX_JOURNAL_ENABLED is for local development"):
         Settings()
@@ -49,6 +50,21 @@ def test_journal_flag_is_allowed_on_a_laptop(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("SANDBOX_JOURNAL_ENABLED", "true")
     monkeypatch.setenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
     assert Settings().sandbox_journal_enabled is True
+
+
+def test_console_money_moving_cannot_be_on_behind_a_public_https_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CONSOLE_MONEY_MOVING_ENABLED", "true")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://d111111abcdef8.cloudfront.net/api")
+    with pytest.raises(ValidationError, match="CONSOLE_MONEY_MOVING_ENABLED cannot be on"):
+        Settings()
+
+
+def test_console_money_moving_is_allowed_on_a_laptop(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CONSOLE_MONEY_MOVING_ENABLED", "true")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
+    assert Settings().console_money_moving_enabled is True
 
 
 def test_mock_control_route_can_be_turned_off(client, configure) -> None:

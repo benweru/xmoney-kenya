@@ -32,7 +32,7 @@ export default function ConsoleSignIn() {
     <PublicShell back="/">
       <PageTitle
         title="Staff console"
-        subtitle="Separate from wallet sign-in. Demo seed is @ops / 2580. This login cannot mint."
+        subtitle="Separate from wallet sign-in. Demo seed is @ops / 2580. Local console can apply, refund, and reverse; a public https demo cannot."
       />
       <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
         <Field label="Handle" htmlFor="handle" error={handleError}>

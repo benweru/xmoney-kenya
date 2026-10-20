@@ -19,6 +19,7 @@ class StaffSignInIn(BaseModel):
 class StaffMeOut(BaseModel):
     staff_user_id: UUID
     handle: str
+    money_moving: bool
 
 
 class ConsoleUserOut(BaseModel):
@@ -109,4 +110,42 @@ class ConsoleAuditEventOut(BaseModel):
     resource_type: str
     resource_id: str | None
     detail: str
+    created_at: datetime
+
+
+class ConsoleSuspenseApplyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    handle: str = Field(examples=["amina"])
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ConsoleSuspenseRefundIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ConsoleReversalProposeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    original_journal_entry_id: UUID
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ConsoleReversalRejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class ConsoleReversalOut(BaseModel):
+    id: UUID
+    original_journal_entry_id: UUID
+    amount_cents: int
+    status: str
+    reason: str
+    maker: str
+    checker: str | None
+    needs_checker: bool
     created_at: datetime
