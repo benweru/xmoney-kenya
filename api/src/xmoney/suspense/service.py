@@ -131,6 +131,7 @@ def apply_to_wallet(
         item.resolve_journal_entry_id = posted.entry_id
         item.wallet_account_id = recipient.wallet_account_id
         item.resolved_at = datetime.now(UTC)
+        _quiet_linked_break(session, item)
         session.flush()
         return _view(item)
 
@@ -158,8 +159,28 @@ def refund_to_float(
         item.resolve_reason = note
         item.resolve_journal_entry_id = posted.entry_id
         item.resolved_at = datetime.now(UTC)
+        _quiet_linked_break(session, item)
         session.flush()
         return _view(item)
+
+
+def _quiet_linked_break(session: Session, item: SuspenseItem) -> None:
+    if item.recon_break_id is None:
+        return
+    linked = session.get(ReconBreak, item.recon_break_id)
+    if linked is None:
+        return
+    now = datetime.now(UTC)
+    query = select(ReconBreak).where(ReconBreak.quieted_at.is_(None))
+    if linked.subject_id is None:
+        query = query.where(ReconBreak.id == linked.id)
+    else:
+        query = query.where(
+            ReconBreak.subject_type == linked.subject_type,
+            ReconBreak.subject_id == linked.subject_id,
+        )
+    for brk in session.scalars(query):
+        brk.quieted_at = now
 
 
 def _lock_open(session: Session, item_id: UUID) -> SuspenseItem:

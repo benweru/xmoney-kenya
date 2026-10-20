@@ -70,6 +70,7 @@ class ConsoleReconBreakOut(BaseModel):
     our_cents: int | None
     their_cents: int | None
     detail: str
+    quieted_at: datetime | None
 
 
 class ConsoleReconLatestOut(BaseModel):

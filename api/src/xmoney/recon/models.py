@@ -1,4 +1,4 @@
-"""Append-only recon runs. A later run does not edit an earlier one."""
+"""Recon runs are append-only. quieted_at is the one later stamp, from closed suspense."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from sqlalchemy import (
     String,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,6 +62,12 @@ class ReconBreak(Base):
             name="ck_recon_breaks_kind",
         ),
         Index("ix_recon_breaks_run_id", "run_id"),
+        Index(
+            "ix_recon_breaks_quieted_subject",
+            "subject_type",
+            "subject_id",
+            postgresql_where=text("quieted_at IS NOT NULL AND subject_id IS NOT NULL"),
+        ),
         {"comment": "A classified difference found in one recon run. Suspense is a later slice."},
     )
 
@@ -76,3 +83,4 @@ class ReconBreak(Base):
     our_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     their_cents: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     detail: Mapped[str] = mapped_column(String(500), nullable=False)
+    quieted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

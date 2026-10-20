@@ -75,6 +75,41 @@ def test_running_balance_drift_is_classified(db: Session) -> None:
     assert report.unexplained_count == 0
 
 
+def test_closing_suspense_quiets_the_next_recon_run(db: Session) -> None:
+    from sqlalchemy import select
+
+    from xmoney.recon.models import ReconBreak
+    from xmoney.suspense.service import open_suspense, refund_to_float
+
+    db.rollback()
+    with db.begin():
+        db.add(
+            StkCallbackLog(
+                id=uuid4(),
+                checkout_request_id="ws_CO_PARKED",
+                topup_id=None,
+                result_code=0,
+                disposition=CallbackDisposition.UNMATCHED.value,
+                payload={},
+            )
+        )
+    first = run_recon(db)
+    assert first.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+    break_id = db.scalar(select(ReconBreak.id).where(ReconBreak.run_id == first.run_id))
+    assert break_id is not None
+    opened = open_suspense(db, amount_cents=100, reason="from recon", recon_break_id=break_id)
+    still_open = run_recon(db)
+    assert still_open.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+    refund_to_float(db, item_id=opened.id, reason="return to float")
+    quiet = run_recon(db)
+    assert quiet.break_count == 0
+    assert quiet.kinds == ()
+    db.expire_all()
+    stamped = db.get(ReconBreak, break_id)
+    assert stamped is not None
+    assert stamped.quieted_at is not None
+
+
 def test_unmatched_and_wrong_amount_callbacks_are_classified(db: Session) -> None:
     db.rollback()
     with db.begin():

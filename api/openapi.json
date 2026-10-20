@@ -621,6 +621,18 @@
             ],
             "title": "Our Cents"
           },
+          "quieted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quieted At"
+          },
           "subject_id": {
             "anyOf": [
               {
@@ -656,7 +668,8 @@
           "subject_id",
           "our_cents",
           "their_cents",
-          "detail"
+          "detail",
+          "quieted_at"
         ],
         "title": "ConsoleReconBreakOut",
         "type": "object"
