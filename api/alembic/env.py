@@ -15,6 +15,7 @@ from xmoney.outbox import models as outbox_models  # noqa: F401
 from xmoney.payments import models as payments_models  # noqa: F401
 from xmoney.ratelimit import models as ratelimit_models  # noqa: F401
 from xmoney.recon import models as recon_models  # noqa: F401
+from xmoney.reversals import models as reversals_models  # noqa: F401
 from xmoney.suspense import models as suspense_models  # noqa: F401
 from xmoney.transfers import models as transfers_models  # noqa: F401
 

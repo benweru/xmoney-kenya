@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     outbox_lease_seconds: int = Field(default=60, ge=1)
     outbox_poll_seconds: float = Field(default=1.0, gt=0)
 
+    # Full reversals at or above this size stay proposed until a different actor approves.
+    reversal_maker_checker_cents: int = Field(default=10_000, ge=1)
+
     pin_max_attempts: int = 5
     pin_lockout_minutes: int = 15
     otp_ttl_seconds: int = 300

@@ -146,6 +146,16 @@ class InvalidSuspense(XMoneyError):
     http_status = 422
 
 
+class ReversalNotFound(XMoneyError):
+    code = "reversal_not_found"
+    http_status = 404
+
+
+class InvalidReversal(XMoneyError):
+    code = "invalid_reversal"
+    http_status = 422
+
+
 class InvalidCursor(XMoneyError):
     code = "invalid_cursor"
     http_status = 422
