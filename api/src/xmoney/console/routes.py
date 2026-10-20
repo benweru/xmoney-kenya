@@ -239,6 +239,7 @@ def console_recon(
                 our_cents=row.our_cents,
                 their_cents=row.their_cents,
                 detail=row.detail,
+                quieted_at=row.quieted_at,
             )
             for row in latest.breaks
         ],

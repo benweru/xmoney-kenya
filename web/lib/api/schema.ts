@@ -1100,6 +1100,8 @@ export interface components {
       kind: string;
       /** Our Cents */
       our_cents: number | null;
+      /** Quieted At */
+      quieted_at: string | null;
       /** Subject Id */
       subject_id: string | null;
       /** Subject Type */

@@ -11,7 +11,7 @@ export default function ConsoleRecon() {
     <ConsoleShell>
       <PageTitle
         title="Reconciliation"
-        subtitle="Classified breaks only. Repair is suspense CLI, not this page."
+        subtitle="Classified breaks. Closing suspense quiets the subject on the next run."
       />
       {recon.isPending && <Skeleton className="h-40 w-full rounded-3xl" />}
       {recon.isError && <Alert>{recon.error.message}</Alert>}
@@ -31,7 +31,10 @@ export default function ConsoleRecon() {
           <ul className="flex flex-col gap-3">
             {recon.data.breaks.map((row) => (
               <li key={row.id} className="rounded-3xl border border-line bg-white p-5">
-                <p className="font-semibold">{row.kind}</p>
+                <p className="font-semibold">
+                  {row.kind}
+                  {row.quieted_at ? " · quieted" : ""}
+                </p>
                 <p className="mt-1 text-sm text-muted">{row.detail}</p>
                 {(row.our_cents != null || row.their_cents != null) && (
                   <p className="mt-2 text-sm">

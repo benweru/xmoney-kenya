@@ -1,4 +1,4 @@
-"""Classify ledger and rail differences. This slice does not move money to suspense."""
+"""Classify ledger and rail differences. Closed suspense quiets a subject (ADR 020)."""
 
 from __future__ import annotations
 
@@ -42,10 +42,11 @@ def run_recon(session: Session, rails: Rails | None = None) -> ReconReport:
         found: list[ReconBreak] = []
         found.extend(_trial(session, run_id))
         found.extend(_wallet_drift(session, run_id))
-        found.extend(_callback_breaks(session, run_id))
-        found.extend(_expired_holds(session, run_id))
+        quieted = _quieted_subjects(session)
+        found.extend(_callback_breaks(session, run_id, quieted))
+        found.extend(_expired_holds(session, run_id, quieted))
         if rails is not None:
-            found.extend(_rail_missing(session, rails, run_id))
+            found.extend(_rail_missing(session, rails, run_id, quieted))
         for row in found:
             session.add(row)
         run = session.get(ReconRun, run_id)
@@ -125,7 +126,21 @@ def _wallet_drift(session: Session, run_id: UUID) -> list[ReconBreak]:
     return found
 
 
-def _callback_breaks(session: Session, run_id: UUID) -> list[ReconBreak]:
+def _quieted_subjects(session: Session) -> set[tuple[str, UUID]]:
+    rows = session.execute(
+        select(ReconBreak.subject_type, ReconBreak.subject_id).where(
+            ReconBreak.quieted_at.is_not(None),
+            ReconBreak.subject_id.is_not(None),
+        )
+    ).all()
+    return {
+        (subject_type, subject_id) for subject_type, subject_id in rows if subject_id is not None
+    }
+
+
+def _callback_breaks(
+    session: Session, run_id: UUID, quieted: set[tuple[str, UUID]]
+) -> list[ReconBreak]:
     rows = session.scalars(
         select(StkCallbackLog).where(
             StkCallbackLog.disposition.in_(
@@ -135,6 +150,8 @@ def _callback_breaks(session: Session, run_id: UUID) -> list[ReconBreak]:
     ).all()
     found: list[ReconBreak] = []
     for row in rows:
+        if ("callback", row.id) in quieted:
+            continue
         if row.disposition == CallbackDisposition.AMOUNT_MISMATCH.value:
             found.append(
                 _break(
@@ -158,7 +175,9 @@ def _callback_breaks(session: Session, run_id: UUID) -> list[ReconBreak]:
     return found
 
 
-def _expired_holds(session: Session, run_id: UUID) -> list[ReconBreak]:
+def _expired_holds(
+    session: Session, run_id: UUID, quieted: set[tuple[str, UUID]]
+) -> list[ReconBreak]:
     rows = session.scalars(
         select(Cashout).where(
             Cashout.status == CashoutStatus.EXPIRED.value,
@@ -175,10 +194,13 @@ def _expired_holds(session: Session, run_id: UUID) -> list[ReconBreak]:
             our_cents=row.amount_cents,
         )
         for row in rows
+        if ("cashout", row.id) not in quieted
     ]
 
 
-def _rail_missing(session: Session, rails: Rails, run_id: UUID) -> list[ReconBreak]:
+def _rail_missing(
+    session: Session, rails: Rails, run_id: UUID, quieted: set[tuple[str, UUID]]
+) -> list[ReconBreak]:
     rows = session.scalars(
         select(Topup).where(
             Topup.status == "succeeded",
@@ -187,6 +209,8 @@ def _rail_missing(session: Session, rails: Rails, run_id: UUID) -> list[ReconBre
     ).all()
     found: list[ReconBreak] = []
     for topup in rows:
+        if ("topup", topup.id) in quieted:
+            continue
         assert topup.checkout_request_id is not None
         provider = rails.for_topup(topup.provider)
         if provider is None:
