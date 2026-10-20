@@ -48,6 +48,7 @@ from xmoney.payments.provider import (
 )
 from xmoney.payments.topups import handle_stk_callback, start_topup
 from xmoney.ratelimit import models as ratelimit_models  # noqa: F401
+from xmoney.recon import models as recon_models  # noqa: F401
 from xmoney.transfers import models as transfers_models  # noqa: F401
 from xmoney.transfers.fees import ensure_default_p2p_schedule
 from xmoney.transfers.service import send

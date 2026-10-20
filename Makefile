@@ -1,6 +1,6 @@
 .PHONY: setup setup-api setup-web up demo down migrate migrate-check test test-api test-web \
 	run run-web lint lint-api lint-web fmt pre-commit smoke-topup resolve-topups outbox-worker \
-	openapi e2e screenshots demo-seed demo-reset \
+	openapi e2e screenshots demo-seed demo-reset recon \
 	tf-check aws-bootstrap aws-foundation aws-plan aws-up aws-sleep aws-wake aws-down aws-run-job
 
 # API commands run inside api/ with its own virtualenv. Web commands run inside web/.
@@ -99,6 +99,10 @@ demo-reset:
 resolve-topups:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-resolve-topups
 
+# Classify ledger vs rail differences. Does not move money to suspense.
+recon:
+	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-recon
+
 # Run the outbox worker (retries, backoff, dead-letter queue). Ctrl-C stops it after the current job.
 outbox-worker:
 	$(API) DATABASE_URL=$(DEV_DATABASE_URL) $(VENV)/xmoney-outbox-worker
@@ -171,5 +175,5 @@ aws-down:
 
 # Run a scheduled job now. JOB=demo-reset also seeds a brand-new database.
 aws-run-job:
-	@test -n "$(JOB)" || (echo "usage: make aws-run-job JOB=demo-reset|resolve-topups"; exit 1)
+	@test -n "$(JOB)" || (echo "usage: make aws-run-job JOB=demo-reset|resolve-topups|recon"; exit 1)
 	infra/scripts/aws-run-job.sh $(JOB)

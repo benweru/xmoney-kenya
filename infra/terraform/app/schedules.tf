@@ -75,6 +75,11 @@ locals {
       description = "Wipe the public demo back to its seed"
       retries     = 2
     }
+    recon = {
+      expression  = var.recon_schedule
+      description = "Classify ledger vs rail differences"
+      retries     = 1
+    }
   }
 }
 
