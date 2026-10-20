@@ -359,6 +359,58 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/console/reversals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Console List Reversals */
+    get: operations["console_list_reversals_v1_console_reversals_get"];
+    put?: never;
+    /** Console Propose Reversal */
+    post: operations["console_propose_reversal_v1_console_reversals_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/reversals/{reversal_id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Console Approve Reversal */
+    post: operations["console_approve_reversal_v1_console_reversals__reversal_id__approve_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/reversals/{reversal_id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Console Reject Reversal */
+    post: operations["console_reject_reversal_v1_console_reversals__reversal_id__reject_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/console/sign-in": {
     parameters: {
       query?: never;
@@ -404,6 +456,40 @@ export interface paths {
     get: operations["console_suspense_v1_console_suspense_get"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/suspense/{item_id}/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Console Apply Suspense */
+    post: operations["console_apply_suspense_v1_console_suspense__item_id__apply_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/console/suspense/{item_id}/refund": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Console Refund Suspense */
+    post: operations["console_refund_suspense_v1_console_suspense__item_id__refund_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1036,6 +1122,61 @@ export interface components {
       /** Unexplained Count */
       unexplained_count: number;
     };
+    /** ConsoleReversalOut */
+    ConsoleReversalOut: {
+      /** Amount Cents */
+      amount_cents: number;
+      /** Checker */
+      checker: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Maker */
+      maker: string;
+      /** Needs Checker */
+      needs_checker: boolean;
+      /**
+       * Original Journal Entry Id
+       * Format: uuid
+       */
+      original_journal_entry_id: string;
+      /** Reason */
+      reason: string;
+      /** Status */
+      status: string;
+    };
+    /** ConsoleReversalProposeIn */
+    ConsoleReversalProposeIn: {
+      /**
+       * Original Journal Entry Id
+       * Format: uuid
+       */
+      original_journal_entry_id: string;
+      /** Reason */
+      reason: string;
+    };
+    /** ConsoleReversalRejectIn */
+    ConsoleReversalRejectIn: {
+      /** Reason */
+      reason: string;
+    };
+    /** ConsoleSuspenseApplyIn */
+    ConsoleSuspenseApplyIn: {
+      /**
+       * Handle
+       * @example amina
+       */
+      handle: string;
+      /** Reason */
+      reason: string;
+    };
     /** ConsoleSuspenseOut */
     ConsoleSuspenseOut: {
       /** Amount Cents */
@@ -1062,6 +1203,11 @@ export interface components {
       status: string;
       /** Wallet Account Id */
       wallet_account_id: string | null;
+    };
+    /** ConsoleSuspenseRefundIn */
+    ConsoleSuspenseRefundIn: {
+      /** Reason */
+      reason: string;
     };
     /** ConsoleUserOut */
     ConsoleUserOut: {
@@ -1282,6 +1428,8 @@ export interface components {
     StaffMeOut: {
       /** Handle */
       handle: string;
+      /** Money Moving */
+      money_moving: boolean;
       /**
        * Staff User Id
        * Format: uuid
@@ -2063,6 +2211,137 @@ export interface operations {
       };
     };
   };
+  console_list_reversals_v1_console_reversals_get: {
+    parameters: {
+      query?: {
+        original_journal_entry_id?: string | null;
+        status?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleReversalOut"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_propose_reversal_v1_console_reversals_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConsoleReversalProposeIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleReversalOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_approve_reversal_v1_console_reversals__reversal_id__approve_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        reversal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleReversalOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_reject_reversal_v1_console_reversals__reversal_id__reject_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        reversal_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConsoleReversalRejectIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleReversalOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   staff_sign_in_v1_console_sign_in_post: {
     parameters: {
       query?: never;
@@ -2130,6 +2409,76 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ConsoleSuspenseOut"][];
+        };
+      };
+    };
+  };
+  console_apply_suspense_v1_console_suspense__item_id__apply_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConsoleSuspenseApplyIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleSuspenseOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  console_refund_suspense_v1_console_suspense__item_id__refund_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConsoleSuspenseRefundIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ConsoleSuspenseOut"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

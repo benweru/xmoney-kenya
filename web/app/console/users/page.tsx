@@ -2,9 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 
-import { ConsoleShell } from "@/components/console-shell";
+import { ConsoleShell, useStaff } from "@/components/console-shell";
 import { Alert, Button, Card, Field, Input, PageTitle, Skeleton } from "@/components/ui";
-import { useConsoleJournal, useConsoleUser, useConsoleUserLedger } from "@/lib/api/hooks";
+import {
+  useConsoleJournal,
+  useConsoleReversals,
+  useConsoleUser,
+  useConsoleUserLedger,
+  useProposeReversal,
+} from "@/lib/api/hooks";
 import { formatKes, formatWhen, normalizeHandle } from "@/lib/format";
 
 export default function ConsoleUsers() {
@@ -102,9 +108,16 @@ function UserPanel({
 }
 
 function JournalCard({ entryId }: { entryId: string }) {
+  const staff = useStaff();
   const journal = useConsoleJournal(entryId);
+  const reversals = useConsoleReversals(entryId);
+  const propose = useProposeReversal();
+  const [reason, setReason] = useState("");
   if (journal.isPending) return <Skeleton className="h-32 w-full rounded-3xl" />;
   if (journal.isError) return <Alert>{journal.error.message}</Alert>;
+  const active = reversals.data?.find(
+    (row) => row.status === "proposed" || row.status === "posted",
+  );
   return (
     <Card>
       <p className="font-semibold">{journal.data.description}</p>
@@ -118,6 +131,28 @@ function JournalCard({ entryId }: { entryId: string }) {
           </li>
         ))}
       </ul>
+      {active && (
+        <p className="mt-3 text-sm text-muted">
+          Reversal {active.status} ({formatKes(active.amount_cents)}) by @{active.maker}.
+        </p>
+      )}
+      {staff.money_moving && !active && (
+        <div className="mt-4 flex flex-col gap-3">
+          {propose.error && <Alert>{propose.error.message}</Alert>}
+          <Field label="Reverse reason" htmlFor="reverse-reason">
+            <Input id="reverse-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          </Field>
+          <Button
+            variant="secondary"
+            loading={propose.isPending}
+            onClick={() =>
+              propose.mutate({ original_journal_entry_id: entryId, reason: reason.trim() })
+            }
+          >
+            Propose reversal
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }

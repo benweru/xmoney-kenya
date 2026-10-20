@@ -1,6 +1,6 @@
 # Staff console
 
-The operations console lives at `/console/` on the wallet app and talks to `/v1/console/*`. It does not move money except replaying a dead outbox job.
+The operations console lives at `/console/` on the wallet app and talks to `/v1/console/*`. On a local stack, signed-in staff can apply or refund suspense and reverse a journal entry. A public https demo cannot enable those writes ([ADR 019](../adr/019-console-money-moving.md)).
 
 ## Sign in (local)
 
@@ -14,13 +14,16 @@ The operations console lives at `/console/` on the wallet app and talks to `/v1/
 - Look up a wallet by handle (phone and balance).
 - Read that wallet's history and any journal entry's postings.
 - See the latest recon run and its classified breaks.
-- See the suspense queue (apply and refund stay on `make suspense`).
+- See the suspense queue and, locally, apply to a handle or refund to the float.
+- Propose a reversal from a user's journal, and approve or reject as a second staff user.
 - List the outbox dead-letter queue and replay one job.
 - Read the staff audit log.
 
 ## What you cannot do here
 
-- Credit a wallet, apply or refund suspense, or reverse a journal entry. Those stay on the CLI so the open demo cannot mint ([ADR 006](../adr/006-open-demo-protections.md), [016](../adr/016-suspense.md), [017](../adr/017-reversals.md), [018](../adr/018-staff-console.md)).
+- Post an arbitrary journal entry. That stays behind `SANDBOX_JOURNAL_ENABLED` ([ADR 006](../adr/006-open-demo-protections.md)).
+- Apply, refund, or reverse on a public https demo. `CONSOLE_MONEY_MOVING_ENABLED` is off there, and the API refuses to start if it would be on.
+- Approve your own reversal. Maker and checker are the staff session, not a string in the body.
 
 ## Seed on AWS
 

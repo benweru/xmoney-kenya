@@ -1,4 +1,4 @@
-"""Staff console: a wallet cookie is not enough, and the API still cannot mint."""
+"""Staff console: a wallet cookie is not enough; money-moving writes need the staff session."""
 
 from __future__ import annotations
 
@@ -12,10 +12,16 @@ from sqlalchemy.orm import Session
 from xmoney.console.models import StaffAuditEvent, StaffUser
 from xmoney.console.service import DEFAULT_STAFF_HANDLE, DEFAULT_STAFF_PIN, seed_staff_user
 from xmoney.demo import seed
+from xmoney.ledger.money import Direction, PostCommand, PostingLine
+from xmoney.ledger.service import get_balance, post_entry
+from xmoney.ledger.system import MPESA_FLOAT
 from xmoney.outbox import service as outbox
 from xmoney.outbox.models import OutboxJob
 from xmoney.outbox.worker import Outcome, run_one
 from xmoney.recon.service import run_recon
+from xmoney.suspense.service import open_suspense
+from xmoney.transfers.models import Transfer
+from xmoney.transfers.service import send
 
 PIN = "2580"
 T0 = datetime(2026, 10, 20, 12, 0, 0, tzinfo=UTC)
@@ -147,7 +153,7 @@ def test_dlq_replay_puts_a_dead_job_back(client: TestClient, db: Session) -> Non
     assert missing.status_code == 404
 
 
-def test_console_has_no_suspense_or_journal_mint(client: TestClient, db: Session) -> None:
+def test_console_has_no_general_journal_mint(client: TestClient, db: Session) -> None:
     _staff(client, db)
     assert client.post("/v1/sandbox/journal-entries", json={}).status_code == 404
     assert client.post("/v1/console/suspense").status_code == 405
@@ -170,3 +176,127 @@ def test_audit_events_are_written(client: TestClient, db: Session) -> None:
 def test_demo_seed_includes_staff(db: Session) -> None:
     assert seed(db) is True
     assert db.scalar(select(StaffUser.handle).where(StaffUser.handle == "ops")) == "ops"
+
+
+def test_staff_can_apply_suspense(client: TestClient, db: Session, sign_up) -> None:
+    wallet = sign_up("amina", "+254712345001")
+    opened = open_suspense(db, amount_cents=1_500, reason="unmatched STK receipt")
+    _staff(client, db)
+    applied = client.post(
+        f"/v1/console/suspense/{opened.id}/apply",
+        json={"handle": "amina", "reason": "customer called"},
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["status"] == "applied"
+    assert get_balance(db, UUID(wallet["wallet_account_id"])).balance_cents == 1_500
+    audit = client.get("/v1/console/audit")
+    assert "apply_suspense" in {row["action"] for row in audit.json()}
+
+
+def test_wallet_cookie_cannot_apply_or_reverse(client: TestClient, db: Session, sign_up) -> None:
+    sign_up("amina", "+254712345001")
+    opened = open_suspense(db, amount_cents=400, reason="parked")
+    apply = client.post(
+        f"/v1/console/suspense/{opened.id}/apply",
+        json={"handle": "amina", "reason": "nope"},
+    )
+    assert apply.status_code == 401
+    assert apply.json()["error"] == "not_authenticated"
+    reverse = client.post(
+        "/v1/console/reversals",
+        json={
+            "original_journal_entry_id": "00000000-0000-0000-0000-000000000001",
+            "reason": "nope",
+        },
+    )
+    assert reverse.status_code == 401
+
+
+def test_money_moving_flag_off_is_404(client: TestClient, db: Session, sign_up, configure) -> None:
+    sign_up("amina", "+254712345001")
+    opened = open_suspense(db, amount_cents=200, reason="parked")
+    _staff(client, db)
+    configure(CONSOLE_MONEY_MOVING_ENABLED="false")
+    apply = client.post(
+        f"/v1/console/suspense/{opened.id}/apply",
+        json={"handle": "amina", "reason": "customer called"},
+    )
+    assert apply.status_code == 404
+    assert apply.json()["error"] == "not_found"
+    refund = client.post(f"/v1/console/suspense/{opened.id}/refund", json={"reason": "return"})
+    assert refund.status_code == 404
+    reverse = client.post(
+        "/v1/console/reversals",
+        json={
+            "original_journal_entry_id": "00000000-0000-0000-0000-000000000001",
+            "reason": "nope",
+        },
+    )
+    assert reverse.status_code == 404
+
+
+def test_reversal_maker_checker_uses_two_staff(
+    client: TestClient, db: Session, sign_up, configure
+) -> None:
+    configure(REVERSAL_MAKER_CHECKER_CENTS="1000")
+    amina = sign_up("amina", "+254712345001")
+    baraka = sign_up("baraka", "+254722345001")
+    post_entry(
+        db,
+        PostCommand(
+            idempotency_key="fund-console",
+            description="Test top-up",
+            postings=(
+                PostingLine(MPESA_FLOAT.id, Direction.DEBIT, 50_000),
+                PostingLine(UUID(amina["wallet_account_id"]), Direction.CREDIT, 50_000),
+            ),
+        ),
+    )
+    sent = send(
+        db,
+        sender_user_id=UUID(amina["user_id"]),
+        sender_handle="amina",
+        sender_wallet_id=UUID(amina["wallet_account_id"]),
+        to_handle="baraka",
+        amount_cents=20_000,
+        idempotency_key="s-console",
+    )
+    transfer = db.get(Transfer, sent.id)
+    assert transfer is not None
+    _staff(client, db)
+    seed_staff_user(db, handle="checker", pin=PIN)
+    proposed = client.post(
+        "/v1/console/reversals",
+        json={
+            "original_journal_entry_id": str(transfer.journal_entry_id),
+            "reason": "wrong payee",
+            "maker": "forged",
+        },
+    )
+    assert proposed.status_code == 422
+    proposed = client.post(
+        "/v1/console/reversals",
+        json={
+            "original_journal_entry_id": str(transfer.journal_entry_id),
+            "reason": "wrong payee",
+        },
+    )
+    assert proposed.status_code == 200, proposed.text
+    body = proposed.json()
+    assert body["status"] == "proposed"
+    assert body["maker"] == "ops"
+    assert body["needs_checker"] is True
+    self_approve = client.post(f"/v1/console/reversals/{body['id']}/approve")
+    assert self_approve.status_code == 422
+    client.post("/v1/console/sign-out")
+    checker = client.post("/v1/console/sign-in", json={"handle": "checker", "pin": PIN})
+    assert checker.status_code == 200, checker.text
+    posted = client.post(f"/v1/console/reversals/{body['id']}/approve")
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"
+    assert posted.json()["checker"] == "checker"
+    assert get_balance(db, UUID(baraka["wallet_account_id"])).balance_cents == 0
+    audit = client.get("/v1/console/audit")
+    actions = {row["action"] for row in audit.json()}
+    assert "propose_reversal" in actions
+    assert "approve_reversal" in actions

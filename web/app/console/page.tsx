@@ -11,7 +11,7 @@ export default function ConsoleHome() {
     <ConsoleShell>
       <PageTitle
         title="Operations"
-        subtitle="Read-only money views. Apply, refund, and reverse stay on the CLI."
+        subtitle="Lookups, recon, and the DLQ. Local staff can apply, refund, and reverse; a public https demo cannot."
       />
       <ReconCard />
       <ul className="grid gap-3 sm:grid-cols-2">
@@ -41,7 +41,12 @@ const LINKS = [
   {
     href: "/console/suspense/",
     title: "Suspense queue",
-    body: "Parked value. Resolve from the CLI.",
+    body: "Parked value. Apply or refund locally.",
+  },
+  {
+    href: "/console/reversals/",
+    title: "Reversals",
+    body: "Maker-checker for large journal reverses.",
   },
   {
     href: "/console/dlq/",

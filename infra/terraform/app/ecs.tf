@@ -157,6 +157,7 @@ locals {
     RATE_LIMITS_ENABLED           = "true"
     TOPUP_MAX_CENTS               = tostring(var.topup_max_kes * 100)
     DARAJA_MOCK_CONTROL_ENABLED   = "false"
+    CONSOLE_MONEY_MOVING_ENABLED  = "false"
     DARAJA_MOCK_BASE_URL          = "http://127.0.0.1:8000/sandbox/daraja"
     DARAJA_MOCK_CALLBACK_BASE_URL = "http://127.0.0.1:8000"
   })

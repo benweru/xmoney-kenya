@@ -726,6 +726,131 @@
         "title": "ConsoleReconLatestOut",
         "type": "object"
       },
+      "ConsoleReversalOut": {
+        "properties": {
+          "amount_cents": {
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "checker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checker"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "maker": {
+            "title": "Maker",
+            "type": "string"
+          },
+          "needs_checker": {
+            "title": "Needs Checker",
+            "type": "boolean"
+          },
+          "original_journal_entry_id": {
+            "format": "uuid",
+            "title": "Original Journal Entry Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "original_journal_entry_id",
+          "amount_cents",
+          "status",
+          "reason",
+          "maker",
+          "checker",
+          "needs_checker",
+          "created_at"
+        ],
+        "title": "ConsoleReversalOut",
+        "type": "object"
+      },
+      "ConsoleReversalProposeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "original_journal_entry_id": {
+            "format": "uuid",
+            "title": "Original Journal Entry Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "original_journal_entry_id",
+          "reason"
+        ],
+        "title": "ConsoleReversalProposeIn",
+        "type": "object"
+      },
+      "ConsoleReversalRejectIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ConsoleReversalRejectIn",
+        "type": "object"
+      },
+      "ConsoleSuspenseApplyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "handle": {
+            "examples": [
+              "amina"
+            ],
+            "title": "Handle",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle",
+          "reason"
+        ],
+        "title": "ConsoleSuspenseApplyIn",
+        "type": "object"
+      },
       "ConsoleSuspenseOut": {
         "properties": {
           "amount_cents": {
@@ -810,6 +935,22 @@
           "resolved_at"
         ],
         "title": "ConsoleSuspenseOut",
+        "type": "object"
+      },
+      "ConsoleSuspenseRefundIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ConsoleSuspenseRefundIn",
         "type": "object"
       },
       "ConsoleUserOut": {
@@ -1297,6 +1438,10 @@
             "title": "Handle",
             "type": "string"
           },
+          "money_moving": {
+            "title": "Money Moving",
+            "type": "boolean"
+          },
           "staff_user_id": {
             "format": "uuid",
             "title": "Staff User Id",
@@ -1305,7 +1450,8 @@
         },
         "required": [
           "staff_user_id",
-          "handle"
+          "handle",
+          "money_moving"
         ],
         "title": "StaffMeOut",
         "type": "object"
@@ -2498,6 +2644,211 @@
         ]
       }
     },
+    "/v1/console/reversals": {
+      "get": {
+        "operationId": "console_list_reversals_v1_console_reversals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "original_journal_entry_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Original Journal Entry Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConsoleReversalOut"
+                  },
+                  "title": "Response Console List Reversals V1 Console Reversals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console List Reversals",
+        "tags": [
+          "console"
+        ]
+      },
+      "post": {
+        "operationId": "console_propose_reversal_v1_console_reversals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleReversalProposeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleReversalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Propose Reversal",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/reversals/{reversal_id}/approve": {
+      "post": {
+        "operationId": "console_approve_reversal_v1_console_reversals__reversal_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reversal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reversal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleReversalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Approve Reversal",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/reversals/{reversal_id}/reject": {
+      "post": {
+        "operationId": "console_reject_reversal_v1_console_reversals__reversal_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reversal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reversal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleReversalRejectIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleReversalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Reject Reversal",
+        "tags": [
+          "console"
+        ]
+      }
+    },
     "/v1/console/sign-in": {
       "post": {
         "operationId": "staff_sign_in_v1_console_sign_in_post",
@@ -2573,6 +2924,112 @@
           }
         },
         "summary": "Console Suspense",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/suspense/{item_id}/apply": {
+      "post": {
+        "operationId": "console_apply_suspense_v1_console_suspense__item_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleSuspenseApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleSuspenseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Apply Suspense",
+        "tags": [
+          "console"
+        ]
+      }
+    },
+    "/v1/console/suspense/{item_id}/refund": {
+      "post": {
+        "operationId": "console_refund_suspense_v1_console_suspense__item_id__refund_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Item Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsoleSuspenseRefundIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleSuspenseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Console Refund Suspense",
         "tags": [
           "console"
         ]

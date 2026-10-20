@@ -87,6 +87,7 @@ def test_a_public_demo_must_restrict_the_sandbox_rail(monkeypatch: pytest.Monkey
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("PAYMENT_RAILS", '["mock", "sandbox"]')
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://d111111abcdef8.cloudfront.net/api")
+    monkeypatch.setenv("CONSOLE_MONEY_MOVING_ENABLED", "false")
     with pytest.raises(ValidationError, match="DARAJA_SANDBOX_ALLOWED_PHONES"):
         Settings()
     monkeypatch.setenv("DARAJA_SANDBOX_ALLOWED_PHONES", '["+254708374149"]')
@@ -208,6 +209,7 @@ def test_a_top_up_on_a_rail_no_longer_offered_still_expires(db: Session) -> None
 def test_mock_callbacks_can_stay_inside_the_task(configure) -> None:
     configure(
         PUBLIC_BASE_URL="https://d111111abcdef8.cloudfront.net/api",
+        CONSOLE_MONEY_MOVING_ENABLED="false",
         DARAJA_MOCK_CALLBACK_BASE_URL="http://127.0.0.1:8000",
         STK_CALLBACK_TOKEN="0123456789abcdef0123",
     )

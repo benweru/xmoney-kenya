@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     # POST /v1/sandbox/journal-entries credits any account, so it is off unless a
     # developer turns it on locally. It cannot be on behind a public https URL.
     sandbox_journal_enabled: bool = False
+    # Staff apply / refund / reverse on /v1/console. On by default for local http.
+    # A public https demo cannot start with this on (ADR 019).
+    console_money_moving_enabled: bool = True
     # PUT /sandbox/daraja/__control/behavior changes the mock's outcome for every
     # visitor. The public demo turns it off; suffix-based outcomes still work.
     daraja_mock_control_enabled: bool = True
@@ -143,6 +146,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Refusing to start: SANDBOX_JOURNAL_ENABLED is for local development and "
                 "cannot be on when PUBLIC_BASE_URL is a public https URL."
+            )
+        if self.console_money_moving_enabled and self.is_public:
+            raise ValueError(
+                "Refusing to start: CONSOLE_MONEY_MOVING_ENABLED cannot be on when "
+                "PUBLIC_BASE_URL is a public https URL. An open demo must not mint "
+                "through the staff console."
             )
         return self
 

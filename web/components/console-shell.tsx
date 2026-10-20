@@ -22,6 +22,7 @@ const NAV = [
   { href: "/console/users/", label: "Users" },
   { href: "/console/recon/", label: "Recon" },
   { href: "/console/suspense/", label: "Suspense" },
+  { href: "/console/reversals/", label: "Reversals" },
   { href: "/console/dlq/", label: "DLQ" },
   { href: "/console/audit/", label: "Audit" },
 ] as const;

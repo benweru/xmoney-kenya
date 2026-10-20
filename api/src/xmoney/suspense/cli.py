@@ -1,4 +1,4 @@
-"""Operator CLI for suspense. Not an HTTP route; the public demo cannot mint this way."""
+"""Operator CLI for suspense. HTTP apply/refund is staff-only and off on a public demo."""
 
 from __future__ import annotations
 

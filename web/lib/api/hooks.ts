@@ -40,6 +40,7 @@ export const keys = {
   consoleJournal: (entryId: string) => ["console-journal", entryId] as const,
   consoleRecon: ["console-recon"] as const,
   consoleSuspense: ["console-suspense"] as const,
+  consoleReversals: ["console-reversals"] as const,
   consoleDlq: ["console-dlq"] as const,
   consoleAudit: ["console-audit"] as const,
 };
@@ -165,6 +166,7 @@ export function useStaffSignOut() {
       queryClient.removeQueries({ queryKey: ["console-journal"] });
       queryClient.removeQueries({ queryKey: keys.consoleRecon });
       queryClient.removeQueries({ queryKey: keys.consoleSuspense });
+      queryClient.removeQueries({ queryKey: keys.consoleReversals });
       queryClient.removeQueries({ queryKey: keys.consoleDlq });
       queryClient.removeQueries({ queryKey: keys.consoleAudit });
     },
@@ -216,6 +218,104 @@ export function useConsoleSuspense() {
   return useQuery({
     queryKey: keys.consoleSuspense,
     queryFn: () => unwrap(api.GET("/v1/console/suspense")),
+  });
+}
+
+export function useApplySuspense() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, handle, reason }: { itemId: string; handle: string; reason: string }) =>
+      unwrap(
+        api.POST("/v1/console/suspense/{item_id}/apply", {
+          params: { path: { item_id: itemId } },
+          body: { handle, reason },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleSuspense });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+      void queryClient.invalidateQueries({ queryKey: ["console-user"] });
+      void queryClient.invalidateQueries({ queryKey: ["console-ledger"] });
+    },
+  });
+}
+
+export function useRefundSuspense() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, reason }: { itemId: string; reason: string }) =>
+      unwrap(
+        api.POST("/v1/console/suspense/{item_id}/refund", {
+          params: { path: { item_id: itemId } },
+          body: { reason },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleSuspense });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+    },
+  });
+}
+
+export function useConsoleReversals(entryId?: string | null) {
+  return useQuery({
+    queryKey: [...keys.consoleReversals, entryId ?? "all"] as const,
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/console/reversals", {
+          params: {
+            query: entryId ? { original_journal_entry_id: entryId } : { status: "proposed" },
+          },
+        }),
+      ),
+  });
+}
+
+export function useProposeReversal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { original_journal_entry_id: string; reason: string }) =>
+      unwrap(api.POST("/v1/console/reversals", { body })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleReversals });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+      void queryClient.invalidateQueries({ queryKey: ["console-ledger"] });
+      void queryClient.invalidateQueries({ queryKey: ["console-journal"] });
+    },
+  });
+}
+
+export function useApproveReversal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (reversalId: string) =>
+      unwrap(
+        api.POST("/v1/console/reversals/{reversal_id}/approve", {
+          params: { path: { reversal_id: reversalId } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleReversals });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+      void queryClient.invalidateQueries({ queryKey: ["console-ledger"] });
+    },
+  });
+}
+
+export function useRejectReversal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reversalId, reason }: { reversalId: string; reason: string }) =>
+      unwrap(
+        api.POST("/v1/console/reversals/{reversal_id}/reject", {
+          params: { path: { reversal_id: reversalId } },
+          body: { reason },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.consoleReversals });
+      void queryClient.invalidateQueries({ queryKey: keys.consoleAudit });
+    },
   });
 }
 

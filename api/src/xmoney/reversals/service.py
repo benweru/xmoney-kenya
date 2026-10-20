@@ -1,7 +1,8 @@
 """Full reversals as new journal entries. The original entry is never edited.
 
 Amounts at or above `reversal_maker_checker_cents` stay proposed until a
-different actor approves. Smaller ones post immediately. There is no HTTP route.
+different actor approves. Smaller ones post immediately. HTTP propose/approve/
+reject is staff-session only and off on a public https demo (ADR 019).
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ class ReversalView:
     maker: str
     checker: str | None
     needs_checker: bool
+    created_at: datetime
 
 
 def _actor(value: str) -> str:
@@ -71,6 +73,7 @@ def propose_reversal(
             status=ReversalStatus.PROPOSED.value,
             reason=note,
             maker=actor,
+            created_at=datetime.now(UTC),
         )
         session.add(item)
         session.flush()
@@ -92,6 +95,26 @@ def approve_reversal(session: Session, *, reversal_id: UUID, checker: str) -> Re
         _entry, lines, _amount = _original(session, item.original_journal_entry_id)
         _post(session, item, lines, checker=actor)
         return _view(item, needs_checker=False)
+
+
+def list_reversals(
+    session: Session,
+    *,
+    original_journal_entry_id: UUID | None = None,
+    status: str | None = None,
+    limit: int = 50,
+) -> list[ReversalView]:
+    query = select(Reversal)
+    if original_journal_entry_id is not None:
+        query = query.where(Reversal.original_journal_entry_id == original_journal_entry_id)
+    if status is not None:
+        query = query.where(Reversal.status == status)
+    rows = session.scalars(
+        query.order_by(Reversal.created_at.desc(), Reversal.id.desc()).limit(limit)
+    ).all()
+    return [
+        _view(item, needs_checker=item.status == ReversalStatus.PROPOSED.value) for item in rows
+    ]
 
 
 def reject_reversal(
@@ -204,4 +227,5 @@ def _view(item: Reversal, *, needs_checker: bool) -> ReversalView:
         maker=item.maker,
         checker=item.checker,
         needs_checker=needs_checker,
+        created_at=item.created_at,
     )

@@ -1,1 +1,1 @@
-"""Staff console: sessions, read-only money views, and a DLQ replay that cannot mint."""
+"""Staff console: sessions, lookups, and local apply/refund/reverse behind ADR 019."""
