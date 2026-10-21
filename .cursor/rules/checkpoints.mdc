@@ -7,6 +7,6 @@ alwaysApply: true
 
 Keep building, committing, pushing, and squash-merging green PRs without waiting for "proceed". Do not wake AWS unless needed. Secrets never in chat.
 
-Stop and catch Ben up **only** at [docs/checkpoints.md](docs/checkpoints.md). At a checkpoint: what landed, what is next, and the listed pivotal questions. Do not start the next milestone until he answers.
+Stop and catch Ben up **only** at [docs/checkpoints.md](docs/checkpoints.md). At a checkpoint: what landed, what is next, and the listed pivotal questions; explain using [explain-to-ben.mdc](explain-to-ben.mdc). Do not start the next milestone until he answers.
 
 Until the current checkpoint is hit, finish the slice (tests, OpenAPI, docs), open a small PR, merge when CI is green, then start the next slice on that checkpoint's path.
