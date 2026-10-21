@@ -1,0 +1,37 @@
+---
+description: How to report progress to Ben at each checkpoint
+alwaysApply: true
+---
+
+# Reporting to Ben
+
+Ben owns this project and has to defend it to a panel. He's a CS graduate who is comfortable with Python/FastAPI, PostgreSQL, React and TypeScript. He is **new to payments and fintech**. Write for that reader.
+
+## When to report
+
+- Follow the checkpoint plan in `.cursor/rules/checkpoints.mdc` and `docs/checkpoints.md`: work in longer chunks and pause only at the predetermined checkpoints. Don't stop after every PR.
+- This file controls only **how** you explain at each checkpoint, not when you stop. If anything here conflicts with checkpoints.mdc on timing, checkpoints.mdc wins.
+- At a checkpoint, cover every PR merged since the last one, giving each the template below.
+
+## Checkpoint template (max ~200 words per PR)
+
+1. **What changed:** one plain sentence a non-engineer could follow.
+2. **How it's implemented:** the specific technology and mechanism, with the main file or function path. For example: "`SELECT … FOR UPDATE` on both wallets in id order, in `api/src/xmoney/transfers/service.py`."
+3. **Why this way:** the alternative you rejected and the reason. Link the ADR if there is one.
+4. **Risk it prevents:** what would go wrong for a customer or the books without it.
+5. **Panel question:** one question a reviewer might ask, with a 1–2 sentence answer.
+6. **Proof:** tests added or run, and whether they passed. Say plainly if something isn't verified.
+
+## Language rules
+
+- Define every payments term the first time it appears in a checkpoint, in one short line. For example:
+  - **STK Push:** the M-PESA PIN prompt sent to the customer's phone.
+  - **B2C:** M-PESA paying out from a business to a customer's phone.
+  - **Float:** the money the business holds at M-PESA.
+  - **Reconciliation:** comparing our books with M-PESA's records and listing the differences.
+  - **Suspense:** a holding account for money we can't yet match to a customer.
+  - Others to define: callback, STK Query, clearing, idempotency, maker-checker, settlement, KYC, AML, DLQ, outbox.
+- No unexplained acronyms. Spell it out on first use (for example, "dead-letter queue (DLQ)").
+- General CS terms (transaction, index, trigger, dependency injection) don't need defining.
+- Prefer concrete numbers and file paths over adjectives. Never claim a result you didn't run.
+- If you're blocked or unsure, say so in the report instead of guessing or continuing.
