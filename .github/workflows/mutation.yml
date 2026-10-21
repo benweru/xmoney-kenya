@@ -1,0 +1,58 @@
+# Hand-run mutation score for the outbox worker and reconciler. Too slow for every PR.
+#   gh workflow run mutation.yml
+name: Mutation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mutmut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: xmoney
+          POSTGRES_PASSWORD: xmoney
+          POSTGRES_DB: xmoney_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xmoney -d xmoney_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://xmoney:xmoney@localhost:5432/xmoney_test
+      TEST_DATABASE_URL: postgresql+psycopg://xmoney:xmoney@localhost:5432/xmoney_test
+      SANDBOX_MODE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]" mutmut
+      - name: Migrate
+        run: alembic upgrade head
+      - name: mutmut run
+        run: mutmut run
+      - name: mutmut results
+        if: always()
+        run: mutmut results
+      - name: Upload mutmut data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutmut-results
+          path: |
+            api/mutants
+            api/.mutmut-cache
+          if-no-files-found: ignore
