@@ -66,6 +66,14 @@ def _compose(*args: str) -> None:
     subprocess.run(cmd, check=True)
 
 
+def _start_worker() -> None:
+    """Restart the killed worker without recreating the API (mock state lives there)."""
+    subprocess.run(
+        ["docker", "compose", "--profile", "app", "up", "-d", "--no-deps", "worker"],
+        check=True,
+    )
+
+
 def _register_and_session(client: Client, handle: str, phone: str) -> None:
     status, body = client.request(
         "POST",
@@ -150,7 +158,7 @@ def main() -> int:
 
     _compose("kill", "worker")
     paused = _topup(client, f"chaos-kill-{tag}")
-    _compose("up", "-d", "worker")
+    _start_worker()
     killed_status = _poll(client, str(paused["id"]), timeout=90.0)
     if killed_status != "succeeded":
         raise SystemExit(f"worker-kill top-up ended {killed_status}")

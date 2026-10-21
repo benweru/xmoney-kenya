@@ -50,6 +50,7 @@ def run_recon(session: Session, rails: Rails | None = None) -> ReconReport:
     run_id = uuid4()
     with session.begin():
         session.add(ReconRun(id=run_id, started_at=datetime.now(UTC)))
+        session.flush()
         found: list[ReconBreak] = []
         found.extend(_trial(session, run_id))
         found.extend(_wallet_drift(session, run_id))
