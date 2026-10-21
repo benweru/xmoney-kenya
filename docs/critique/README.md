@@ -32,3 +32,4 @@ Keep it to about one page. Read the code, not just the PR descriptions.
 | [m3-console.md](m3-console.md) | Staff console v1 | Published demo PIN; GET audits are noisy | M5 TOTP; staff ids on reverse/suspense |
 | [m3-console-money.md](m3-console-money.md) | HTTP apply/refund/reverse | Recon still nags after suspense closes | Recon↔suspense glue |
 | [m3-recon-suspense.md](m3-recon-suspense.md) | Quiet recon after suspense close | Staff still paste a break id | Mock settlement / console open-from-break |
+| [m3-settlement.md](m3-settlement.md) | Mock settlement / Transaction Status | Sandbox still has no extract | Chaos evidence |

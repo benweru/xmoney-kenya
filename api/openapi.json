@@ -1420,6 +1420,46 @@
         "title": "RegisterIn",
         "type": "object"
       },
+      "SettlementIn": {
+        "additionalProperties": false,
+        "properties": {
+          "Amount": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 250000.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "CheckoutRequestID": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkoutrequestid"
+          },
+          "PhoneNumber": {
+            "title": "Phonenumber",
+            "type": "string"
+          },
+          "TransactionID": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "TransactionID",
+          "Amount",
+          "PhoneNumber"
+        ],
+        "title": "SettlementIn",
+        "type": "object"
+      },
       "SignInIn": {
         "additionalProperties": false,
         "properties": {
@@ -1744,6 +1784,64 @@
           "idempotent_replay"
         ],
         "title": "TopupOut",
+        "type": "object"
+      },
+      "TransactionStatusBody": {
+        "properties": {
+          "CommandID": {
+            "title": "Commandid",
+            "type": "string"
+          },
+          "IdentifierType": {
+            "title": "Identifiertype",
+            "type": "string"
+          },
+          "Initiator": {
+            "title": "Initiator",
+            "type": "string"
+          },
+          "Occasion": {
+            "default": "",
+            "title": "Occasion",
+            "type": "string"
+          },
+          "PartyA": {
+            "title": "Partya",
+            "type": "string"
+          },
+          "QueueTimeOutURL": {
+            "title": "Queuetimeouturl",
+            "type": "string"
+          },
+          "Remarks": {
+            "default": "",
+            "title": "Remarks",
+            "type": "string"
+          },
+          "ResultURL": {
+            "title": "Resulturl",
+            "type": "string"
+          },
+          "SecurityCredential": {
+            "title": "Securitycredential",
+            "type": "string"
+          },
+          "TransactionID": {
+            "title": "Transactionid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "Initiator",
+          "SecurityCredential",
+          "CommandID",
+          "TransactionID",
+          "PartyA",
+          "IdentifierType",
+          "ResultURL",
+          "QueueTimeOutURL"
+        ],
+        "title": "TransactionStatusBody",
         "type": "object"
       },
       "TransferIn": {
@@ -2091,6 +2189,42 @@
         "summary": "Control Health"
       }
     },
+    "/sandbox/daraja/__control/settlement": {
+      "put": {
+        "operationId": "inject_settlement_sandbox_daraja___control_settlement_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettlementIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inject Settlement"
+      }
+    },
     "/sandbox/daraja/mpesa/b2c/v1/paymentrequest": {
       "post": {
         "operationId": "b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post",
@@ -2125,6 +2259,22 @@
           }
         },
         "summary": "B2C Payment"
+      }
+    },
+    "/sandbox/daraja/mpesa/settlement/v1/file": {
+      "get": {
+        "operationId": "settlement_file_sandbox_daraja_mpesa_settlement_v1_file_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Settlement File"
       }
     },
     "/sandbox/daraja/mpesa/stkpush/v1/processrequest": {
@@ -2197,6 +2347,42 @@
           }
         },
         "summary": "Stk Query"
+      }
+    },
+    "/sandbox/daraja/mpesa/transactionstatus/v1/query": {
+      "post": {
+        "operationId": "transaction_status_sandbox_daraja_mpesa_transactionstatus_v1_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transaction Status"
       }
     },
     "/sandbox/daraja/oauth/v1/generate": {

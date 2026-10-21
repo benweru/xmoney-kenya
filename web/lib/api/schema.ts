@@ -72,6 +72,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/sandbox/daraja/__control/settlement": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Inject Settlement */
+    put: operations["inject_settlement_sandbox_daraja___control_settlement_put"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/sandbox/daraja/mpesa/b2c/v1/paymentrequest": {
     parameters: {
       query?: never;
@@ -83,6 +100,23 @@ export interface paths {
     put?: never;
     /** B2C Payment */
     post: operations["b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sandbox/daraja/mpesa/settlement/v1/file": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Settlement File */
+    get: operations["settlement_file_sandbox_daraja_mpesa_settlement_v1_file_get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -117,6 +151,23 @@ export interface paths {
     put?: never;
     /** Stk Query */
     post: operations["stk_query_sandbox_daraja_mpesa_stkpushquery_v1_query_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sandbox/daraja/mpesa/transactionstatus/v1/query": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Transaction Status */
+    post: operations["transaction_status_sandbox_daraja_mpesa_transactionstatus_v1_query_post"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1413,6 +1464,17 @@ export interface components {
        */
       pin: string;
     };
+    /** SettlementIn */
+    SettlementIn: {
+      /** Amount */
+      Amount: number;
+      /** Checkoutrequestid */
+      CheckoutRequestID?: string | null;
+      /** Phonenumber */
+      PhoneNumber: string;
+      /** Transactionid */
+      TransactionID: string;
+    };
     /** SignInIn */
     SignInIn: {
       /**
@@ -1538,6 +1600,35 @@ export interface components {
       result_desc: string | null;
       /** Status */
       status: string;
+    };
+    /** TransactionStatusBody */
+    TransactionStatusBody: {
+      /** Commandid */
+      CommandID: string;
+      /** Identifiertype */
+      IdentifierType: string;
+      /** Initiator */
+      Initiator: string;
+      /**
+       * Occasion
+       * @default
+       */
+      Occasion: string;
+      /** Partya */
+      PartyA: string;
+      /** Queuetimeouturl */
+      QueueTimeOutURL: string;
+      /**
+       * Remarks
+       * @default
+       */
+      Remarks: string;
+      /** Resulturl */
+      ResultURL: string;
+      /** Securitycredential */
+      SecurityCredential: string;
+      /** Transactionid */
+      TransactionID: string;
     };
     /** TransferIn */
     TransferIn: {
@@ -1753,6 +1844,39 @@ export interface operations {
       };
     };
   };
+  inject_settlement_sandbox_daraja___control_settlement_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettlementIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   b2c_payment_sandbox_daraja_mpesa_b2c_v1_paymentrequest_post: {
     parameters: {
       query?: never;
@@ -1782,6 +1906,26 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  settlement_file_sandbox_daraja_mpesa_settlement_v1_file_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
         };
       };
     };
@@ -1829,6 +1973,39 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["StkQueryBody"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  transaction_status_sandbox_daraja_mpesa_transactionstatus_v1_query_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TransactionStatusBody"];
       };
     };
     responses: {

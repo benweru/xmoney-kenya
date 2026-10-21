@@ -74,6 +74,10 @@ class Rails:
         """Callback parsing is the same on every rail."""
         return self._get(next(iter(self._built), self.default))
 
+    def providers(self) -> list[PaymentsProvider]:
+        """Every offered rail, built on first use. Recon walks these for a settlement file."""
+        return [self._get(name) for name in self.names]
+
     def close(self) -> None:
         for provider in self._built.values():
             close = getattr(provider, "close", None)

@@ -170,6 +170,51 @@ def test_scripted_failure_callbacks(provider, callback_inbox, phone, outcome, co
     assert parsed.mpesa_receipt_number is None
 
 
+def test_dropped_callback_is_on_the_settlement_file(provider, callback_inbox) -> None:
+    url, inbox = callback_inbox
+    accepted = _push(provider, "+254700000099", url, key="stk-drop-settle")
+    with pytest.raises(queue.Empty):
+        inbox.get(timeout=0.4)
+    rows = provider.list_settlement()
+    assert len(rows) == 1
+    assert rows[0].checkout_request_id == accepted.checkout_request_id
+    assert rows[0].callback_delivered is False
+    assert rows[0].amount_cents == 10_000
+    assert rows[0].receipt_number.startswith("SBOX")
+    status = provider.transaction_status(rows[0].receipt_number)
+    assert status.paid is True
+    assert status.checkout_request_id == accepted.checkout_request_id
+    assert status.amount_cents == 10_000
+
+
+def test_cancelled_stk_is_not_on_the_settlement_file(provider, callback_inbox) -> None:
+    url, inbox = callback_inbox
+    _push(provider, "+254700000032", url, key="stk-cancel-settle")
+    inbox.get(timeout=3)
+    assert provider.list_settlement() == []
+
+
+def test_injected_orphan_is_on_the_settlement_file(provider) -> None:
+    response = provider._client.put(
+        provider._url("__control/settlement"),
+        json={
+            "TransactionID": "SBOXORPHAN99",
+            "Amount": 75,
+            "PhoneNumber": "254700000000",
+        },
+    )
+    assert response.status_code == 200
+    rows = provider.list_settlement()
+    assert len(rows) == 1
+    assert rows[0].receipt_number == "SBOXORPHAN99"
+    assert rows[0].amount_cents == 7_500
+    assert rows[0].checkout_request_id is None
+    assert rows[0].callback_delivered is False
+    status = provider.transaction_status("SBOXORPHAN99")
+    assert status.paid is True
+    assert status.amount_cents == 7_500
+
+
 def test_suffix_drops_the_callback(provider, callback_inbox) -> None:
     url, inbox = callback_inbox
     _push(provider, "+254700000099", url, key="stk-drop-1")
