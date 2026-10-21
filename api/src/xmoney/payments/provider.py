@@ -68,6 +68,30 @@ class StkQueryResult:
 
 
 @dataclass(frozen=True)
+class SettlementRow:
+    """One paid collection the rail admits. The mock serves a file; sandbox has none."""
+
+    receipt_number: str
+    amount_cents: int
+    checkout_request_id: str | None
+    phone_e164: str | None
+    callback_delivered: bool
+
+
+@dataclass(frozen=True)
+class TransactionStatusResult:
+    """Daraja Transaction Status. The mock inlines Result; sandbox only acks."""
+
+    transaction_id: str
+    processing: bool
+    result_code: int | None
+    result_desc: str
+    amount_cents: int | None
+    checkout_request_id: str | None
+    paid: bool
+
+
+@dataclass(frozen=True)
 class B2cPaymentRequest:
     amount_cents: int
     phone_e164: str

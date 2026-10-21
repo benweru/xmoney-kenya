@@ -20,7 +20,10 @@ everyone; the suffix rules still apply.
 | other | the configured default, which starts as success |
 
 Receipt numbers are prefixed with SBOX so they cannot be confused with a live
-M-PESA receipt. This simulator does not post the ledger.
+M-PESA receipt. Successful STKs, including dropped callbacks, appear on
+GET /mpesa/settlement/v1/file. PUT /__control/settlement injects an extra paid
+row. POST /mpesa/transactionstatus/v1/query looks a receipt up and inlines
+Result (sandbox only acknowledges). This simulator does not post the ledger.
 """
 
 from __future__ import annotations
@@ -95,6 +98,16 @@ class StkRecord:
     callback_url: str
     outcome: Outcome = Outcome.SUCCESS
     completes_at: float = 0.0
+    receipt: str | None = None
+    drop_callback: bool = False
+
+
+@dataclass(frozen=True)
+class InjectedSettlement:
+    receipt: str
+    amount_shillings: int
+    phone: str
+    checkout_request_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -113,6 +126,7 @@ class DarajaMockState:
     b2c_by_key: dict[str, B2cRecord] = field(default_factory=dict)
     b2c_by_originator: dict[str, B2cRecord] = field(default_factory=dict)
     attempts: list[CallbackAttempt] = field(default_factory=list)
+    injected_settlement: list[InjectedSettlement] = field(default_factory=list)
     last_stk_body: dict[str, object] | None = None
     last_b2c_body: dict[str, object] | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -126,6 +140,7 @@ class DarajaMockState:
             self.b2c_by_key.clear()
             self.b2c_by_originator.clear()
             self.attempts.clear()
+            self.injected_settlement.clear()
             self.last_stk_body = None
             self.last_b2c_body = None
 
@@ -181,6 +196,30 @@ class StkQueryBody(BaseModel):
     Password: str
     Timestamp: str
     CheckoutRequestID: str
+
+
+class SettlementIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    TransactionID: str = Field(min_length=1, max_length=40)
+    Amount: int = Field(gt=0, le=250_000)
+    PhoneNumber: str
+    CheckoutRequestID: str | None = Field(default=None, max_length=64)
+
+
+class TransactionStatusBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    Initiator: str
+    SecurityCredential: str
+    CommandID: str
+    TransactionID: str
+    PartyA: str
+    IdentifierType: str
+    ResultURL: str
+    QueueTimeOutURL: str
+    Remarks: str = ""
+    Occasion: str = ""
 
 
 def create_daraja_mock_app(state: DarajaMockState | None = None) -> FastAPI:
@@ -313,6 +352,73 @@ def build_daraja_router() -> APIRouter:
             },
         )
 
+    @router.get("/mpesa/settlement/v1/file")
+    def settlement_file(request: Request) -> JSONResponse:
+        state = _state(request)
+        if not _bearer_is_valid(state, request.headers.get("authorization", "")):
+            return _error(401, "404.001.03", "Invalid Access Token")
+        now = time.monotonic()
+        with state._lock:
+            rows = [
+                _settlement_item(record)
+                for record in state.records_by_checkout.values()
+                if record.outcome is Outcome.SUCCESS
+                and record.receipt is not None
+                and now >= record.completes_at
+            ]
+            rows.extend(_injected_item(row) for row in state.injected_settlement)
+        return JSONResponse(status_code=200, content={"transactions": rows})
+
+    @router.put("/__control/settlement", response_model=None)
+    def inject_settlement(body: SettlementIn, request: Request) -> dict[str, object] | JSONResponse:
+        if not get_settings().daraja_mock_control_enabled:
+            return _error(404, "404.000", "Not found")
+        if _PHONE_RE_MSISDN.fullmatch(body.PhoneNumber) is None:
+            return _error(400, "400.002", "PhoneNumber must be a Kenyan MSISDN in 2547... form")
+        injected = InjectedSettlement(
+            receipt=body.TransactionID.strip(),
+            amount_shillings=body.Amount,
+            phone=body.PhoneNumber,
+            checkout_request_id=(
+                body.CheckoutRequestID.strip() if body.CheckoutRequestID else None
+            ),
+        )
+        if not injected.receipt:
+            return _error(400, "400.002", "TransactionID is required")
+        state = _state(request)
+        with state._lock:
+            if any(row.receipt == injected.receipt for row in state.injected_settlement):
+                return _error(409, "sandbox.idempotency_conflict", "TransactionID already injected")
+            for record in state.records_by_checkout.values():
+                if record.receipt == injected.receipt:
+                    return _error(
+                        409,
+                        "sandbox.idempotency_conflict",
+                        "TransactionID already exists on an STK",
+                    )
+            state.injected_settlement.append(injected)
+        return {
+            "TransactionID": injected.receipt,
+            "Amount": injected.amount_shillings,
+            "PhoneNumber": injected.phone,
+            "CheckoutRequestID": injected.checkout_request_id,
+        }
+
+    @router.post("/mpesa/transactionstatus/v1/query")
+    def transaction_status(body: TransactionStatusBody, request: Request) -> JSONResponse:
+        state = _state(request)
+        if not _bearer_is_valid(state, request.headers.get("authorization", "")):
+            return _error(401, "404.001.03", "Invalid Access Token")
+        problem = _validate_transaction_status(body)
+        if problem is not None:
+            return problem
+        record, injected = _lookup_paid(state, body.TransactionID)
+        if record is None and injected is None:
+            return _error(400, "400.002.02", "Bad Request - Invalid TransactionID")
+        if record is not None and time.monotonic() < record.completes_at:
+            return _error(500, "500.001.1001", "The transaction is being processed")
+        return JSONResponse(status_code=200, content=_transaction_status_body(record, injected))
+
     @router.post("/mpesa/b2c/v1/paymentrequest")
     def b2c_payment(
         body: B2cPaymentBody,
@@ -422,6 +528,106 @@ def _validate_b2c(body: B2cPaymentBody) -> JSONResponse | None:
     if not 1 <= len(body.Occasion) <= 100:
         return _error(400, "400.002", "Occasion must be 1-100 characters")
     return None
+
+
+def _validate_transaction_status(body: TransactionStatusBody) -> JSONResponse | None:
+    if body.CommandID != "TransactionStatusQuery":
+        return _error(400, "400.002", "Unsupported CommandID")
+    if not body.Initiator or not body.SecurityCredential or not body.PartyA:
+        return _error(400, "400.002", "Initiator, SecurityCredential and PartyA are required")
+    if not body.TransactionID.strip():
+        return _error(400, "400.002", "TransactionID is required")
+    if body.IdentifierType != "4":
+        return _error(400, "400.002", "IdentifierType 4 (shortcode) is required")
+    for url in (body.ResultURL, body.QueueTimeOutURL):
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return _error(400, "400.002", "ResultURL and QueueTimeOutURL must be http(s)")
+    return None
+
+
+def _lookup_paid(
+    state: DarajaMockState, transaction_id: str
+) -> tuple[StkRecord | None, InjectedSettlement | None]:
+    txn = transaction_id.strip()
+    with state._lock:
+        for record in state.records_by_checkout.values():
+            if record.receipt == txn:
+                return record, None
+        for injected in state.injected_settlement:
+            if injected.receipt == txn:
+                return None, injected
+    return None, None
+
+
+def _settlement_item(record: StkRecord) -> dict[str, object]:
+    return {
+        "TransactionID": record.receipt,
+        "CheckoutRequestID": record.checkout_request_id,
+        "Amount": record.amount_shillings,
+        "PhoneNumber": record.phone,
+        "ResultCode": 0,
+        "CallbackDelivered": not record.drop_callback,
+    }
+
+
+def _injected_item(row: InjectedSettlement) -> dict[str, object]:
+    item: dict[str, object] = {
+        "TransactionID": row.receipt,
+        "Amount": row.amount_shillings,
+        "PhoneNumber": row.phone,
+        "ResultCode": 0,
+        "CallbackDelivered": False,
+    }
+    if row.checkout_request_id:
+        item["CheckoutRequestID"] = row.checkout_request_id
+    return item
+
+
+def _transaction_status_body(
+    record: StkRecord | None, injected: InjectedSettlement | None
+) -> dict[str, object]:
+    checkout: str | None
+    receipt: str
+    amount: int | None
+    if record is not None:
+        code, desc = RESULT_CODES[record.outcome]
+        paid = record.outcome is Outcome.SUCCESS
+        amount = record.amount_shillings if paid else None
+        receipt = record.receipt if paid and record.receipt is not None else ""
+        checkout = record.checkout_request_id
+        conversation = record.merchant_request_id
+    else:
+        assert injected is not None
+        code, desc = RESULT_CODES[Outcome.SUCCESS]
+        paid = True
+        amount = injected.amount_shillings
+        receipt = injected.receipt
+        checkout = injected.checkout_request_id
+        conversation = f"inject-{injected.receipt}"
+    parameters: list[dict[str, object]] = [
+        {"Key": "TransactionStatus", "Value": "Completed" if paid else "Failed"},
+        {"Key": "ReceiptNo", "Value": receipt},
+    ]
+    if amount is not None:
+        parameters.append({"Key": "Amount", "Value": amount})
+    if checkout:
+        parameters.append({"Key": "CheckoutRequestID", "Value": checkout})
+    return {
+        "OriginatorConversationID": conversation,
+        "ConversationID": conversation,
+        "ResponseCode": "0",
+        "ResponseDescription": "Accept the service request successfully.",
+        "Result": {
+            "ResultType": 0,
+            "ResultCode": code,
+            "ResultDesc": desc,
+            "OriginatorConversationID": conversation,
+            "ConversationID": conversation,
+            "TransactionID": receipt,
+            "ResultParameters": {"ResultParameter": parameters},
+        },
+    }
 
 
 def _validate_stk(body: StkPushBody) -> JSONResponse | None:
@@ -567,6 +773,8 @@ def _new_record(
         callback_url=body.CallBackURL,
         outcome=behavior.outcome,
         completes_at=time.monotonic() + behavior.delay_ms / 1000,
+        receipt=_receipt() if behavior.outcome is Outcome.SUCCESS else None,
+        drop_callback=behavior.drop_callback,
     )
 
 
@@ -592,10 +800,11 @@ def _callback_payload(record: StkRecord, behavior: Behavior) -> dict[str, object
         "ResultDesc": desc,
     }
     if behavior.outcome is Outcome.SUCCESS:
+        assert record.receipt is not None
         callback["CallbackMetadata"] = {
             "Item": [
                 {"Name": "Amount", "Value": record.amount_shillings},
-                {"Name": "MpesaReceiptNumber", "Value": _receipt()},
+                {"Name": "MpesaReceiptNumber", "Value": record.receipt},
                 {
                     "Name": "TransactionDate",
                     "Value": int(datetime.now(UTC).strftime("%Y%m%d%H%M%S")),

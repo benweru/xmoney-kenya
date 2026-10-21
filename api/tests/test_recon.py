@@ -11,12 +11,14 @@ from xmoney.demo import seed
 from xmoney.identity.service import register_user
 from xmoney.payments.daraja import parse_stk_callback
 from xmoney.payments.deps import Rails
-from xmoney.payments.models import CallbackDisposition, StkCallbackLog
+from xmoney.payments.models import CallbackDisposition, StkCallbackLog, Topup, TopupStatus
 from xmoney.payments.provider import (
     AccessToken,
     B2cAccepted,
     B2cPaymentRequest,
     B2cResult,
+    Outcome,
+    SettlementRow,
     StkCallback,
     StkPushAccepted,
     StkPushRequest,
@@ -146,3 +148,128 @@ def test_stk_query_that_disagrees_is_missing_on_the_rail(db: Session) -> None:
     report = run_recon(db, Rails.of(rail))
     assert report.kinds.count(BreakKind.MISSING_ON_RAIL.value) == 4
     assert rail.queries == 4
+
+
+class _Agrees(_QueryDisagrees):
+    def __init__(self) -> None:
+        self.queries = 0
+        self.rows: list[SettlementRow] = []
+
+    def stk_query(self, checkout_request_id: str) -> StkQueryResult:
+        self.queries += 1
+        return StkQueryResult(checkout_request_id, False, 0, "paid", Outcome.SUCCESS)
+
+    def list_settlement(self) -> list[SettlementRow]:
+        return list(self.rows)
+
+
+def _park_pending(db: Session, checkout: str, cents: int = 10_000) -> Topup:
+    user = register_user(db, handle="reconwait", phone="+254700000099")
+    row = Topup(
+        id=uuid4(),
+        user_id=user.id,
+        wallet_account_id=user.wallet_account_id,
+        idempotency_key=f"pending:{checkout}",
+        request_hash="a" * 64,
+        amount_cents=cents,
+        phone_e164=user.phone_e164,
+        status=TopupStatus.PENDING.value,
+        provider="mock",
+        merchant_request_id="m-pending",
+        checkout_request_id=checkout,
+    )
+    with db.begin():
+        db.add(row)
+    return row
+
+
+def test_settlement_paid_without_a_callback_is_missing_on_the_ledger(db: Session) -> None:
+    parked = _park_pending(db, "ws_CO_DROPPED1")
+    rail = _Agrees()
+    rail.rows = [
+        SettlementRow(
+            receipt_number="SBOXDROPPED1",
+            amount_cents=10_000,
+            checkout_request_id=parked.checkout_request_id,
+            phone_e164="+254700000099",
+            callback_delivered=False,
+        )
+    ]
+    report = run_recon(db, Rails.of(rail))
+    assert report.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+
+
+def test_orphan_settlement_row_is_missing_on_the_ledger(db: Session) -> None:
+    rail = _Agrees()
+    rail.rows = [
+        SettlementRow(
+            receipt_number="SBOXORPHAN01",
+            amount_cents=5_000,
+            checkout_request_id=None,
+            phone_e164="+254700000000",
+            callback_delivered=False,
+        )
+    ]
+    report = run_recon(db, Rails.of(rail))
+    assert report.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+
+
+def test_stk_query_paid_pending_topup_is_missing_on_the_ledger(db: Session) -> None:
+    _park_pending(db, "ws_CO_QUERYPAID")
+    rail = _Agrees()
+    report = run_recon(db, Rails.of(rail))
+    assert report.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+    assert rail.queries == 1
+
+
+def test_unmatched_callback_and_settlement_do_not_double_count(db: Session) -> None:
+    db.rollback()
+    with db.begin():
+        db.add(
+            StkCallbackLog(
+                id=uuid4(),
+                checkout_request_id="ws_CO_BOTH",
+                topup_id=None,
+                result_code=0,
+                disposition=CallbackDisposition.UNMATCHED.value,
+                payload={},
+            )
+        )
+    rail = _Agrees()
+    rail.rows = [
+        SettlementRow(
+            receipt_number="SBOXBOTH0001",
+            amount_cents=2_000,
+            checkout_request_id="ws_CO_BOTH",
+            phone_e164="+254700000000",
+            callback_delivered=True,
+        )
+    ]
+    report = run_recon(db, Rails.of(rail))
+    assert report.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+
+
+def test_closing_suspense_quiets_a_settlement_orphan(db: Session) -> None:
+    from sqlalchemy import select
+
+    from xmoney.recon.models import ReconBreak
+    from xmoney.suspense.service import open_suspense, refund_to_float
+
+    rail = _Agrees()
+    rail.rows = [
+        SettlementRow(
+            receipt_number="SBOXQUIET01",
+            amount_cents=3_000,
+            checkout_request_id=None,
+            phone_e164="+254700000000",
+            callback_delivered=False,
+        )
+    ]
+    first = run_recon(db, Rails.of(rail))
+    assert first.kinds == (BreakKind.MISSING_ON_LEDGER.value,)
+    break_id = db.scalar(select(ReconBreak.id).where(ReconBreak.run_id == first.run_id))
+    assert break_id is not None
+    opened = open_suspense(db, amount_cents=3_000, reason="orphan paid", recon_break_id=break_id)
+    refund_to_float(db, item_id=opened.id, reason="return to float")
+    quiet = run_recon(db, Rails.of(rail))
+    assert quiet.kinds == ()

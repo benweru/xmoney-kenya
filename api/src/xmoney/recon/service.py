@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,9 +20,12 @@ from xmoney.payments.models import (
     CashoutStatus,
     StkCallbackLog,
     Topup,
+    TopupStatus,
 )
-from xmoney.payments.provider import Outcome
+from xmoney.payments.provider import Outcome, PaymentsProvider, SettlementRow
 from xmoney.recon.models import BreakKind, ReconBreak, ReconRun
+
+_SETTLEMENT_NS = uuid5(NAMESPACE_URL, "https://xmoney.kenya/recon/settlement")
 
 
 @dataclass(frozen=True)
@@ -33,8 +36,16 @@ class ReconReport:
     kinds: tuple[str, ...]
 
 
+@dataclass
+class _Walk:
+    run_id: UUID
+    quieted: set[tuple[str, UUID]]
+    checkouts: set[str] = field(default_factory=set)
+    receipts: set[str] = field(default_factory=set)
+
+
 def run_recon(session: Session, rails: Rails | None = None) -> ReconReport:
-    """Walk wallets, callbacks, and (optionally) STK Query. Commits one run."""
+    """Walk wallets, callbacks, settlement, and (optionally) STK Query. Commits one run."""
     release_read_transaction(session)
     run_id = uuid4()
     with session.begin():
@@ -42,11 +53,14 @@ def run_recon(session: Session, rails: Rails | None = None) -> ReconReport:
         found: list[ReconBreak] = []
         found.extend(_trial(session, run_id))
         found.extend(_wallet_drift(session, run_id))
-        quieted = _quieted_subjects(session)
-        found.extend(_callback_breaks(session, run_id, quieted))
-        found.extend(_expired_holds(session, run_id, quieted))
+        walk = _Walk(run_id=run_id, quieted=_quieted_subjects(session))
+        _load_quieted_rail_keys(session, walk)
+        found.extend(_callback_breaks(session, walk))
+        found.extend(_expired_holds(session, walk))
         if rails is not None:
-            found.extend(_rail_missing(session, rails, run_id, quieted))
+            found.extend(_settlement_breaks(session, rails, walk))
+            found.extend(_pending_paid(session, rails, walk))
+            found.extend(_rail_missing(session, rails, walk))
         for row in found:
             session.add(row)
         run = session.get(ReconRun, run_id)
@@ -138,9 +152,23 @@ def _quieted_subjects(session: Session) -> set[tuple[str, UUID]]:
     }
 
 
-def _callback_breaks(
-    session: Session, run_id: UUID, quieted: set[tuple[str, UUID]]
-) -> list[ReconBreak]:
+def _load_quieted_rail_keys(session: Session, walk: _Walk) -> None:
+    callback_ids = [sid for typ, sid in walk.quieted if typ == "callback"]
+    if callback_ids:
+        logs = session.scalars(select(StkCallbackLog).where(StkCallbackLog.id.in_(callback_ids)))
+        for row in logs:
+            walk.checkouts.add(row.checkout_request_id)
+    topup_ids = [sid for typ, sid in walk.quieted if typ == "topup"]
+    if topup_ids:
+        topups = session.scalars(select(Topup).where(Topup.id.in_(topup_ids)))
+        for topup in topups:
+            if topup.checkout_request_id:
+                walk.checkouts.add(topup.checkout_request_id)
+            if topup.mpesa_receipt_number:
+                walk.receipts.add(topup.mpesa_receipt_number)
+
+
+def _callback_breaks(session: Session, walk: _Walk) -> list[ReconBreak]:
     rows = session.scalars(
         select(StkCallbackLog).where(
             StkCallbackLog.disposition.in_(
@@ -150,12 +178,13 @@ def _callback_breaks(
     ).all()
     found: list[ReconBreak] = []
     for row in rows:
-        if ("callback", row.id) in quieted:
+        if ("callback", row.id) in walk.quieted:
             continue
+        walk.checkouts.add(row.checkout_request_id)
         if row.disposition == CallbackDisposition.AMOUNT_MISMATCH.value:
             found.append(
                 _break(
-                    run_id,
+                    walk.run_id,
                     BreakKind.AMOUNT_MISMATCH,
                     "callback",
                     row.id,
@@ -165,7 +194,7 @@ def _callback_breaks(
         else:
             found.append(
                 _break(
-                    run_id,
+                    walk.run_id,
                     BreakKind.MISSING_ON_LEDGER,
                     "callback",
                     row.id,
@@ -175,9 +204,7 @@ def _callback_breaks(
     return found
 
 
-def _expired_holds(
-    session: Session, run_id: UUID, quieted: set[tuple[str, UUID]]
-) -> list[ReconBreak]:
+def _expired_holds(session: Session, walk: _Walk) -> list[ReconBreak]:
     rows = session.scalars(
         select(Cashout).where(
             Cashout.status == CashoutStatus.EXPIRED.value,
@@ -186,7 +213,7 @@ def _expired_holds(
     ).all()
     return [
         _break(
-            run_id,
+            walk.run_id,
             BreakKind.IN_FLIGHT_HOLD,
             "cashout",
             row.id,
@@ -194,29 +221,138 @@ def _expired_holds(
             our_cents=row.amount_cents,
         )
         for row in rows
-        if ("cashout", row.id) not in quieted
+        if ("cashout", row.id) not in walk.quieted
     ]
 
 
-def _rail_missing(
-    session: Session, rails: Rails, run_id: UUID, quieted: set[tuple[str, UUID]]
-) -> list[ReconBreak]:
+def _settlement_breaks(session: Session, rails: Rails, walk: _Walk) -> list[ReconBreak]:
+    topups = session.scalars(select(Topup).where(Topup.checkout_request_id.is_not(None))).all()
+    by_checkout = {row.checkout_request_id: row for row in topups if row.checkout_request_id}
+    by_receipt = {
+        row.mpesa_receipt_number: row for row in topups if row.mpesa_receipt_number is not None
+    }
+    found: list[ReconBreak] = []
+    for provider in rails.providers():
+        for row in _list_settlement(provider):
+            if _settlement_already_seen(row, walk):
+                continue
+            topup = None
+            if row.checkout_request_id:
+                topup = by_checkout.get(row.checkout_request_id)
+            if topup is None:
+                topup = by_receipt.get(row.receipt_number)
+            if topup is not None and topup.status == TopupStatus.SUCCEEDED.value:
+                if topup.amount_cents == row.amount_cents:
+                    _mark_settlement(row, walk)
+                    continue
+                if ("topup", topup.id) in walk.quieted:
+                    _mark_settlement(row, walk)
+                    continue
+                _mark_settlement(row, walk)
+                found.append(
+                    _break(
+                        walk.run_id,
+                        BreakKind.AMOUNT_MISMATCH,
+                        "topup",
+                        topup.id,
+                        (
+                            f"settlement {row.receipt_number} is {row.amount_cents} cents "
+                            f"but ledger credited {topup.amount_cents}"
+                        ),
+                        our_cents=topup.amount_cents,
+                        their_cents=row.amount_cents,
+                    )
+                )
+                continue
+            subject_type, subject_id = _settlement_subject(topup, row)
+            if (subject_type, subject_id) in walk.quieted:
+                _mark_settlement(row, walk)
+                continue
+            _mark_settlement(row, walk)
+            detail = (
+                f"settlement {row.receipt_number} paid {row.amount_cents} cents"
+                if topup is None
+                else (
+                    f"settlement {row.receipt_number} paid but top-up {topup.id} is {topup.status}"
+                )
+            )
+            if row.checkout_request_id and not row.callback_delivered:
+                detail = (
+                    f"rail paid {row.checkout_request_id} ({row.receipt_number}) "
+                    "but never called back"
+                )
+            found.append(
+                _break(
+                    walk.run_id,
+                    BreakKind.MISSING_ON_LEDGER,
+                    subject_type,
+                    subject_id,
+                    detail,
+                    our_cents=topup.amount_cents if topup is not None else 0,
+                    their_cents=row.amount_cents,
+                )
+            )
+    return found
+
+
+def _pending_paid(session: Session, rails: Rails, walk: _Walk) -> list[ReconBreak]:
     rows = session.scalars(
         select(Topup).where(
-            Topup.status == "succeeded",
+            Topup.status != TopupStatus.SUCCEEDED.value,
             Topup.checkout_request_id.is_not(None),
         )
     ).all()
     found: list[ReconBreak] = []
     for topup in rows:
-        if ("topup", topup.id) in quieted:
+        if ("topup", topup.id) in walk.quieted:
+            continue
+        assert topup.checkout_request_id is not None
+        if topup.checkout_request_id in walk.checkouts:
+            continue
+        provider = rails.for_topup(topup.provider)
+        if provider is None:
+            continue
+        try:
+            queried = provider.stk_query(topup.checkout_request_id)
+        except (ProviderError, RailUnavailable, OSError):
+            continue
+        if queried.processing or queried.outcome is not Outcome.SUCCESS:
+            continue
+        walk.checkouts.add(topup.checkout_request_id)
+        found.append(
+            _break(
+                walk.run_id,
+                BreakKind.MISSING_ON_LEDGER,
+                "topup",
+                topup.id,
+                (
+                    f"STK Query says {topup.checkout_request_id} is paid "
+                    f"but the top-up is {topup.status}"
+                ),
+                our_cents=0,
+                their_cents=topup.amount_cents,
+            )
+        )
+    return found
+
+
+def _rail_missing(session: Session, rails: Rails, walk: _Walk) -> list[ReconBreak]:
+    rows = session.scalars(
+        select(Topup).where(
+            Topup.status == TopupStatus.SUCCEEDED.value,
+            Topup.checkout_request_id.is_not(None),
+        )
+    ).all()
+    found: list[ReconBreak] = []
+    for topup in rows:
+        if ("topup", topup.id) in walk.quieted:
             continue
         assert topup.checkout_request_id is not None
         provider = rails.for_topup(topup.provider)
         if provider is None:
             found.append(
                 _break(
-                    run_id,
+                    walk.run_id,
                     BreakKind.MISSING_ON_RAIL,
                     "topup",
                     topup.id,
@@ -230,7 +366,7 @@ def _rail_missing(
         except (ProviderError, RailUnavailable, OSError) as exc:
             found.append(
                 _break(
-                    run_id,
+                    walk.run_id,
                     BreakKind.MISSING_ON_RAIL,
                     "topup",
                     topup.id,
@@ -245,7 +381,7 @@ def _rail_missing(
             continue
         found.append(
             _break(
-                run_id,
+                walk.run_id,
                 BreakKind.MISSING_ON_RAIL,
                 "topup",
                 topup.id,
@@ -257,6 +393,37 @@ def _rail_missing(
             )
         )
     return found
+
+
+def _list_settlement(provider: PaymentsProvider) -> list[SettlementRow]:
+    lister = getattr(provider, "list_settlement", None)
+    if not callable(lister):
+        return []
+    try:
+        rows = lister()
+    except (ProviderError, RailUnavailable, OSError):
+        return []
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, SettlementRow)]
+
+
+def _settlement_already_seen(row: SettlementRow, walk: _Walk) -> bool:
+    if row.checkout_request_id and row.checkout_request_id in walk.checkouts:
+        return True
+    return row.receipt_number in walk.receipts
+
+
+def _mark_settlement(row: SettlementRow, walk: _Walk) -> None:
+    if row.checkout_request_id:
+        walk.checkouts.add(row.checkout_request_id)
+    walk.receipts.add(row.receipt_number)
+
+
+def _settlement_subject(topup: Topup | None, row: SettlementRow) -> tuple[str, UUID]:
+    if topup is not None:
+        return "topup", topup.id
+    return "settlement", uuid5(_SETTLEMENT_NS, row.receipt_number)
 
 
 def _break(

@@ -11,7 +11,7 @@ export default function ConsoleRecon() {
     <ConsoleShell>
       <PageTitle
         title="Reconciliation"
-        subtitle="Classified breaks. Closing suspense quiets the subject on the next run."
+        subtitle="Classified breaks, including rail-paid with no callback. Closing suspense quiets the next run."
       />
       {recon.isPending && <Skeleton className="h-40 w-full rounded-3xl" />}
       {recon.isError && <Alert>{recon.error.message}</Alert>}

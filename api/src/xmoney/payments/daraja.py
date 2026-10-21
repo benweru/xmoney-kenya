@@ -26,10 +26,12 @@ from xmoney.payments.provider import (
     B2cPaymentRequest,
     B2cResult,
     Outcome,
+    SettlementRow,
     StkCallback,
     StkPushAccepted,
     StkPushRequest,
     StkQueryResult,
+    TransactionStatusResult,
 )
 from xmoney.sandbox import assert_sandbox_daraja_host
 
@@ -279,6 +281,124 @@ class DarajaHttpProvider:
 
     def parse_stk_callback(self, payload: object) -> StkCallback:
         return parse_stk_callback(payload)
+
+    def list_settlement(self) -> list[SettlementRow]:
+        """Paid collections the mock admits. Sandbox has no file and returns empty."""
+        token = self.obtain_token()
+        response = self._client.get(
+            self._url("mpesa/settlement/v1/file"),
+            headers={"Authorization": f"Bearer {token.token}"},
+        )
+        if response.status_code == 404:
+            return []
+        body = _json_or_empty(response)
+        if response.status_code != 200:
+            raise ProviderError(
+                _error_message(body, "settlement file was rejected"),
+                status_code=response.status_code,
+            )
+        items = body.get("transactions")
+        if not isinstance(items, list):
+            raise ProviderError("settlement file was missing transactions")
+        rows: list[SettlementRow] = []
+        for item in items:
+            if not isinstance(item, Mapping):
+                raise ProviderError("settlement file contained a non-object row")
+            receipt = str(item.get("TransactionID") or "").strip()
+            if not receipt:
+                raise ProviderError("settlement row was missing TransactionID")
+            try:
+                amount_cents = _shillings_to_cents(item.get("Amount"))
+            except CallbackParseError as exc:
+                raise ProviderError("settlement row amount is not a positive number") from exc
+            checkout = item.get("CheckoutRequestID")
+            phone = item.get("PhoneNumber")
+            rows.append(
+                SettlementRow(
+                    receipt_number=receipt,
+                    amount_cents=amount_cents,
+                    checkout_request_id=str(checkout).strip() if checkout else None,
+                    phone_e164=_phone_from_daraja(phone) if phone not in (None, "") else None,
+                    callback_delivered=bool(item.get("CallbackDelivered", True)),
+                )
+            )
+        return rows
+
+    def transaction_status(self, transaction_id: str) -> TransactionStatusResult:
+        """Look up a receipt. The mock inlines Result; sandbox only acknowledges."""
+        if not isinstance(transaction_id, str) or not transaction_id.strip():
+            raise InvalidPaymentRequest("transaction_id is required")
+        txn = transaction_id.strip()
+        token = self.obtain_token()
+        response = self._client.post(
+            self._url("mpesa/transactionstatus/v1/query"),
+            json={
+                "Initiator": self.initiator_name,
+                "SecurityCredential": self.security_credential,
+                "CommandID": "TransactionStatusQuery",
+                "TransactionID": txn,
+                "PartyA": self.shortcode,
+                "IdentifierType": "4",
+                "ResultURL": "http://127.0.0.1/recon/transaction-status",
+                "QueueTimeOutURL": "http://127.0.0.1/recon/transaction-status-timeout",
+                "Remarks": "recon",
+                "Occasion": "recon",
+            },
+            headers={"Authorization": f"Bearer {token.token}"},
+        )
+        body = _json_or_empty(response)
+        if str(body.get("errorCode", "")) == _STILL_PROCESSING:
+            return TransactionStatusResult(
+                transaction_id=txn,
+                processing=True,
+                result_code=None,
+                result_desc=_error_message(body, "The transaction is being processed"),
+                amount_cents=None,
+                checkout_request_id=None,
+                paid=False,
+            )
+        if response.status_code != 200:
+            raise ProviderError(
+                _error_message(body, "Transaction Status was rejected"),
+                status_code=response.status_code,
+            )
+        result = body.get("Result")
+        if not isinstance(result, Mapping):
+            return TransactionStatusResult(
+                transaction_id=txn,
+                processing=True,
+                result_code=None,
+                result_desc=str(body.get("ResponseDescription", "accepted")),
+                amount_cents=None,
+                checkout_request_id=None,
+                paid=False,
+            )
+        try:
+            result_code = int(result["ResultCode"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ProviderError("Transaction Status Result was missing ResultCode") from exc
+        values = {}
+        params = result.get("ResultParameters")
+        if isinstance(params, Mapping):
+            values = _result_parameter_values(params.get("ResultParameter"))
+        amount_cents: int | None = None
+        amount = values.get("Amount")
+        if amount is not None:
+            try:
+                amount_cents = _shillings_to_cents(amount)
+            except CallbackParseError as exc:
+                raise ProviderError("Transaction Status amount is not numeric") from exc
+        checkout = values.get("CheckoutRequestID")
+        receipt = values.get("ReceiptNo")
+        return TransactionStatusResult(
+            transaction_id=str(receipt) if receipt else txn,
+            processing=False,
+            result_code=result_code,
+            result_desc=str(result.get("ResultDesc", "")),
+            amount_cents=amount_cents,
+            checkout_request_id=str(checkout) if checkout else None,
+            paid=result_code == 0,
+        )
 
     def b2c_payment(self, request: B2cPaymentRequest) -> B2cAccepted:
         shillings = _whole_shillings(request.amount_cents)

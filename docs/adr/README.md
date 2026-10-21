@@ -24,5 +24,6 @@ Each ADR records one decision: the context, what we chose, and what it costs. AD
 | [018](018-staff-console.md) | Staff console: a separate session, read-only money views, DLQ replay | Accepted |
 | [019](019-console-money-moving.md) | Console money-moving writes: local HTTP only | Accepted |
 | [020](020-recon-suspense-glue.md) | Closed suspense quiets the recon subject | Accepted |
+| [021](021-mock-settlement-file.md) | Mock settlement file; Transaction Status looks up a receipt | Accepted |
 
 New ADRs copy [template.md](template.md) and take the next number.
