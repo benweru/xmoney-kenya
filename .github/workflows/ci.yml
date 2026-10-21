@@ -94,6 +94,8 @@ jobs:
           done
           docker compose --profile app logs
           exit 1
+      - name: Chaos subset (worker kill)
+        run: python3 infra/chaos/run.py --subset --base-url http://127.0.0.1:8000
       - name: Stop
         if: always()
         run: docker compose --profile app down -v
