@@ -70,7 +70,7 @@ def run_recon(session: Session, rails: Rails | None = None) -> ReconReport:
         run.unexplained_count = 0
         run.finished_at = datetime.now(UTC)
         kinds = tuple(row.kind for row in found)
-        return ReconReport(run_id, len(found), 0, kinds)
+        return ReconReport(run_id, len(found), run.unexplained_count, kinds)
 
 
 def _trial(session: Session, run_id: UUID) -> list[ReconBreak]:

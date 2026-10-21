@@ -37,6 +37,20 @@ The production code still has those locks and the `(created_at, journal_entry_id
 
 Target if run by hand: mutmut on `ledger/service.py` ≥ 70% killed, `transfers/service.py` and `payments/topups.py` ≥ 60%. Surviving equivalent mutants get listed here. **Not published in this PR** — a full mutmut pass is too slow for every student CI run.
 
+## M3: outbox worker and reconciler
+
+mutmut needs `os.fork` (Linux/WSL; [boxed/mutmut#397](https://github.com/boxed/mutmut/issues/397)). It is **not** on the PR `api` job. Config lives in `api/pyproject.toml` `[tool.mutmut]` (worker + `recon/service.py`, tests `test_outbox.py` + `test_recon.py`). Re-run on GitHub: `gh workflow run mutation.yml`.
+
+Until that workflow has a published score, these are the standing "broke it on purpose" checks (reverted; never merged), same style as M1:
+
+| Change (reverted) | Test that failed | Why that proves the code |
+| --- | --- | --- |
+| `if False and service.finish(...)` in `outbox/worker.py` `run_one` | `test_a_job_runs_once_and_is_done` | The handler ran but the job never moved to done; `run_one` reported `lease_lost` instead of `DONE`. |
+| Skip `_settlement_breaks` in `run_recon` | `test_orphan_settlement_row_is_missing_on_the_ledger` | Pending STK Query still finds our own dropped pushes; an orphan receipt with no top-up is invisible without the settlement file. |
+| `run.unexplained_count = 1` (after `ReconReport` reads that field) | `test_a_clean_seed_has_no_breaks` | A clean seed must report unexplained 0, not only write 0 on the row and ignore it in the return value. |
+
+`ReconReport.unexplained_count` now uses the run row (`run.unexplained_count`) instead of a hardcoded `0`, so that last mutant is killable.
+
 ## Coverage
 
 Line coverage for `ledger/`, `transfers/`, and `payments/topups.py` is in [`hygiene.md`](hygiene.md). The `api` job prints `pytest --cov=xmoney` and fails under 80% overall.

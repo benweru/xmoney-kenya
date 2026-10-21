@@ -19,7 +19,7 @@ The plan and the targets are in the [roadmap](../roadmap.md#proof-track). Status
 | Lighthouse (mobile) | M2 | Stretch | performance at least 90, accessibility at least 95 | `web.md` | planned |
 | Chaos suite with counts | M3 | Core | at least 1,000 faults, 0 unexplained, drift 0 | `chaos.md` | published |
 | Load test, second row | M3 | Core | at least 2× the M2 sends/s at the same p95 | `load-tests.md` | planned |
-| Mutation score on the worker and reconciler | M3 | Core | as in M1 | `correctness.md` | planned |
+| Mutation score on the worker and reconciler | M3 | Core | as in M1 | `correctness.md` | in progress |
 | Chaos demo video or GIF | M3 | Stretch | 60 seconds | README | planned |
 | RDS reboot recovery | M3 | Stretch | measured and published | `chaos.md` | planned |
 | NPS Bill 2026 mapping | M4 | Core | 2 pages, cited clauses only | `nps-bill-2026.md` | planned |
