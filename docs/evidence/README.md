@@ -17,7 +17,7 @@ The plan and the targets are in the [roadmap](../roadmap.md#proof-track). Status
 | Measured AWS cost | M2 | Core | at most $25 for a month awake, at most $3 with the app stack torn down | README, `cost.md` | planned |
 | Dependency, container, and secret scans | M2 | Core | 0 high or critical findings open more than 7 days | README badges, `security-scans.md` | in progress |
 | Lighthouse (mobile) | M2 | Stretch | performance at least 90, accessibility at least 95 | `web.md` | planned |
-| Chaos suite with counts | M3 | Core | at least 1,000 faults, 0 unexplained, drift 0 | `chaos.md` | planned |
+| Chaos suite with counts | M3 | Core | at least 1,000 faults, 0 unexplained, drift 0 | `chaos.md` | published |
 | Load test, second row | M3 | Core | at least 2× the M2 sends/s at the same p95 | `load-tests.md` | planned |
 | Mutation score on the worker and reconciler | M3 | Core | as in M1 | `correctness.md` | planned |
 | Chaos demo video or GIF | M3 | Stretch | 60 seconds | README | planned |
