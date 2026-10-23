@@ -24,7 +24,7 @@ The interesting problem is the **integration**: identity, wallet, handshake with
   <img src="docs/images/wallet-history.png" alt="Transaction history" width="200" />
 </p>
 
-`make demo` → wallet on <http://localhost:3000>. Live URL (when up) is listed in [docs/evidence](docs/evidence/README.md).
+`make demo` → wallet on <http://localhost:3000>. No public demo URL yet — run locally with `make demo`.
 
 ---
 

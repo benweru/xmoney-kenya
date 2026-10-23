@@ -31,6 +31,10 @@ make pre-commit
 
 The hooks run ruff and mypy on `api/`, and ESLint and Prettier on `web/`. `make fmt` applies ruff and Prettier formatting.
 
+## Cursor agent context
+
+`.cursor/rules/` is intentional project context for Cursor agents; leave those files in the repo.
+
 ## Sandbox only
 
 Nothing in this repository may move real money. Do not add production Safaricom hosts, real credentials, or a way to turn sandbox mode off.
