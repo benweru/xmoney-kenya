@@ -83,7 +83,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build and start the demo stack
-        run: docker compose --profile app up -d --build
+        run: |
+          # Docker Hub sometimes returns 500 for postgres:16-alpine. Pull it
+          # first so one blip does not fail the job, then do not pull again.
+          for attempt in 1 2 3 4 5; do
+            if docker pull postgres:16-alpine; then
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "docker pull postgres:16-alpine failed after 5 attempts"
+              exit 1
+            fi
+            echo "docker pull postgres:16-alpine failed (attempt ${attempt}/5); retrying"
+            sleep $((attempt * 5))
+          done
+          docker compose --profile app up -d --build --pull missing
       - name: Smoke test
         run: |
           for i in $(seq 1 60); do
@@ -114,7 +128,20 @@ jobs:
         run: npm ci && npx playwright install --with-deps chromium
       - name: Start the demo stack on the Daraja mock
         run: |
-          docker compose --profile app up -d --build
+          # Docker Hub sometimes returns 500 for postgres:16-alpine. Pull it
+          # first so one blip does not fail the job, then do not pull again.
+          for attempt in 1 2 3 4 5; do
+            if docker pull postgres:16-alpine; then
+              break
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "docker pull postgres:16-alpine failed after 5 attempts"
+              exit 1
+            fi
+            echo "docker pull postgres:16-alpine failed (attempt ${attempt}/5); retrying"
+            sleep $((attempt * 5))
+          done
+          docker compose --profile app up -d --build --pull missing
           for i in $(seq 1 60); do
             curl -fsS localhost:3000/api/health >/dev/null && exit 0
             sleep 2
